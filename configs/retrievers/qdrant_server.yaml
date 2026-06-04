@@ -1,0 +1,31 @@
+# Qdrant server mode (gRPC client/server).
+# 별도 Qdrant 서버 프로세스 필요 (standalone 바이너리 또는 Docker).
+# 본 pod 는 Docker 불가 → standalone 바이너리로 localhost:6334(gRPC) 기동.
+# 결정 근거: reports/history/2026-06-04_vectordb-server-eval.md.
+
+name: qdrant_server
+impl: reco_bench.retrievers.qdrant_server:QdrantServer
+category: vector_db_server
+
+device: cpu                                # 서버 측 hardware
+
+deployment:
+  mode: server
+  client_host: localhost
+  grpc_port: 6334
+  # 서버 기동: nohup /tmp/qdrant (QDRANT__SERVICE__GRPC_PORT=6334)
+
+build:
+  collection_name: reco_bench_server
+  vectors_config:
+    distance: Dot                          # L2-norm 후 IP = cosine
+    hnsw_config:
+      m: 32
+      ef_construct: 200
+
+search:
+  hnsw_ef_grid: [16, 32, 64, 128, 256, 512]
+
+availability:
+  python_package: qdrant-client
+  install: "pip install qdrant-client"

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_confluence-storage-export · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 1 &nbsp;·&nbsp; <b>topic</b>: confluence-storage-export &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="reports-confluence-storage-format-xhtml">reports 문서의 Confluence Storage Format (XHTML) 변환</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><code>scripts/md_to_confluence_storage.py</code> 추가 — markdown → Confluence
+  Storage Format (XHTML 기반) 변환기.</li>
+<li><code>reports/confluence_storage/</code> 에 23개 문서를 <code>.storage.xml</code> 로 변환.</li>
+<li><code>reports/confluence_storage/README.md</code> — REST API 업로드 방법, 변환
+  매핑, 한계.</li>
+<li>원본 <code>.md</code> 유지. 이제 export 형식이 3종: html / wiki markup / storage.</li>
+</ul>
+<p>storage format 매핑:
+- 코드블록 → <code>&lt;ac:structured-macro ac:name="code"&gt;</code> + CDATA
+- frontmatter → <code>&lt;ac:structured-macro ac:name="info"&gt;</code> 패널 (table)
+- 블록 수식 → <code>&lt;ac:structured-macro ac:name="noformat"&gt;</code> (raw TeX)
+- 인라인 수식 → <code>&lt;code&gt;</code>
+- 이미지 → <code>&lt;ac:image&gt;&lt;ri:attachment ri:filename=".."/&gt;&lt;/ac:image&gt;</code>
+- 제목/표/리스트/강조 → 표준 XHTML (storage format 이 그대로 수용)</p>
+<h2 id="why">Why</h2>
+<ul>
+<li>사용자가 wiki markup (legacy) 이 아닌 <strong>storage format (XHTML)</strong> 을
+  요청. storage format 은 Confluence REST API 의 <code>body.storage.value</code>
+  에 직접 넣을 수 있어 <strong>자동 업로드/동기화에 적합</strong> (wiki markup 은
+  신규 Confluence Cloud 에서 수동 붙여넣기만 가능한 경우 많음).</li>
+<li>markdown→HTML 파이프라인 (<code>md_to_html.py</code>) 의 수식 보호 전략을 재사용
+  하고, Python-Markdown 을 <code>output_format="xhtml"</code> 로 돌려 self-closing
+  태그를 보장한 뒤, code/panel/image 만 storage 매크로로 후처리.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>23개 파일 모두:</li>
+<li>NUL byte / 미복원 placeholder 0건 (Python 검증; shell <code>$'\x00'</code>
+    grep 은 null 전달 불가로 false positive 였음).</li>
+<li>단일 root 로 감싼 뒤 <code>xml.etree</code> 파싱 → <strong>전부 well-formed XML</strong>.</li>
+<li>code 매크로 CDATA, info 패널, noformat 수식, ac:image attachment,
+  XHTML 표 모두 생성 확인.</li>
+<li>LaTeX subscript <code>_</code> 깨짐 0건 (수식 보호 재사용).</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li>이미지(<code>ri:attachment</code>)는 해당 png 가 Confluence 페이지에 첨부돼야
+  표시됨 → 업로드 자동화 시 attachment API 호출 필요.</li>
+<li>LaTeX 렌더는 Confluence LaTeX 매크로 플러그인 필요 (noformat 은 소스만).</li>
+<li>내부 페이지 링크(<code>&lt;ac:link&gt;</code>)는 대상 페이지 제목 의존이라 수동 처리.</li>
+<li>향후 <code>.md</code> 수정 시 3개 변환기 (<code>md_to_html</code>, <code>md_to_confluence</code>,
+  <code>md_to_confluence_storage</code>) 를 묶는 <code>scripts/export_docs.sh</code> 고려.</li>
+</ul>
+</body>
+</html>

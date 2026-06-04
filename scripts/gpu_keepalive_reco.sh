@@ -28,7 +28,7 @@ is_experiment_running() {
     [ -r "/proc/$pid/cmdline" ] || continue
     cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
     case "$cmdline" in
-      *train_gpt.py*|*reco_bench.pipelines.train*|*reco_bench.pipelines.evaluate*|*reco_bench.pipelines.build_index*) return 0 ;;
+      *train_gpt.py*|*reco_bench.pipelines.train*) return 0 ;;
     esac
   done
   return 1

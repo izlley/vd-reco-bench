@@ -37,3 +37,4 @@
 | 2026-06-04 | 1 | [confluence-export](2026-06-04_confluence-export.md) | completed | reports 문서 21개를 Confluence Wiki Markup 으로 변환 (`scripts/md_to_confluence.py` → `reports/confluence/`). 원본 .md 는 유지. |
 | 2026-06-04 | 1 | [html-export](2026-06-04_html-export.md) | completed | reports 문서 22개를 standalone HTML 로 변환 (`scripts/md_to_html.py` → `reports/html/`, MathJax 수식 렌더 + index.html + figures). 원본 .md 유지. |
 | 2026-06-04 | 1 | [confluence-storage-export](2026-06-04_confluence-storage-export.md) | completed | reports 문서 23개를 Confluence Storage Format (XHTML) 으로 변환 (`scripts/md_to_confluence_storage.py` → `reports/confluence_storage/`). REST API 업로드용. 전부 well-formed XML. |
+| 2026-06-04 | 1 | [vectordb-server-eval](2026-06-04_vectordb-server-eval.md) | completed | Vector DB **server-mode** 평가. Docker 불가 → Qdrant standalone 바이너리 gRPC 서버로 측정 (ML-25M 743 QPS / Amazon 550, recall 1.0). Milvus 는 minio 의존으로 생략. keepalive 의 CPU-eval 오인 버그 수정. 5 retriever × 2 dataset 통합. |

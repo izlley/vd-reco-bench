@@ -1,0 +1,47 @@
+<ac:structured-macro ac:name="info"><ac:parameter ac:name="title">metadata</ac:parameter><ac:rich-text-body><table><tbody><tr><th>date</th><td>2026-06-04</td></tr><tr><th>phase</th><td>1</td></tr><tr><th>topic</th><td>confluence-storage-export</td></tr><tr><th>status</th><td>completed</td></tr></tbody></table></ac:rich-text-body></ac:structured-macro>
+<h1>reports 문서의 Confluence Storage Format (XHTML) 변환</h1>
+<h2>What changed</h2>
+<ul>
+<li><code>scripts/md_to_confluence_storage.py</code> 추가 — markdown → Confluence
+  Storage Format (XHTML 기반) 변환기.</li>
+<li><code>reports/confluence_storage/</code> 에 23개 문서를 <code>.storage.xml</code> 로 변환.</li>
+<li><code>reports/confluence_storage/README.md</code> — REST API 업로드 방법, 변환
+  매핑, 한계.</li>
+<li>원본 <code>.md</code> 유지. 이제 export 형식이 3종: html / wiki markup / storage.</li>
+</ul>
+<p>storage format 매핑:
+- 코드블록 → <code>&lt;ac:structured-macro ac:name="code"&gt;</code> + CDATA
+- frontmatter → <code>&lt;ac:structured-macro ac:name="info"&gt;</code> 패널 (table)
+- 블록 수식 → <code>&lt;ac:structured-macro ac:name="noformat"&gt;</code> (raw TeX)
+- 인라인 수식 → <code>&lt;code&gt;</code>
+- 이미지 → <code>&lt;ac:image&gt;&lt;ri:attachment ri:filename=".."/&gt;&lt;/ac:image&gt;</code>
+- 제목/표/리스트/강조 → 표준 XHTML (storage format 이 그대로 수용)</p>
+<h2>Why</h2>
+<ul>
+<li>사용자가 wiki markup (legacy) 이 아닌 <strong>storage format (XHTML)</strong> 을
+  요청. storage format 은 Confluence REST API 의 <code>body.storage.value</code>
+  에 직접 넣을 수 있어 <strong>자동 업로드/동기화에 적합</strong> (wiki markup 은
+  신규 Confluence Cloud 에서 수동 붙여넣기만 가능한 경우 많음).</li>
+<li>markdown→HTML 파이프라인 (<code>md_to_html.py</code>) 의 수식 보호 전략을 재사용
+  하고, Python-Markdown 을 <code>output_format="xhtml"</code> 로 돌려 self-closing
+  태그를 보장한 뒤, code/panel/image 만 storage 매크로로 후처리.</li>
+</ul>
+<h2>Validation</h2>
+<ul>
+<li>23개 파일 모두:</li>
+<li>NUL byte / 미복원 placeholder 0건 (Python 검증; shell <code>$'\x00'</code>
+    grep 은 null 전달 불가로 false positive 였음).</li>
+<li>단일 root 로 감싼 뒤 <code>xml.etree</code> 파싱 → <strong>전부 well-formed XML</strong>.</li>
+<li>code 매크로 CDATA, info 패널, noformat 수식, ac:image attachment,
+  XHTML 표 모두 생성 확인.</li>
+<li>LaTeX subscript <code>_</code> 깨짐 0건 (수식 보호 재사용).</li>
+</ul>
+<h2>Open questions / next</h2>
+<ul>
+<li>이미지(<code>ri:attachment</code>)는 해당 png 가 Confluence 페이지에 첨부돼야
+  표시됨 → 업로드 자동화 시 attachment API 호출 필요.</li>
+<li>LaTeX 렌더는 Confluence LaTeX 매크로 플러그인 필요 (noformat 은 소스만).</li>
+<li>내부 페이지 링크(<code>&lt;ac:link&gt;</code>)는 대상 페이지 제목 의존이라 수동 처리.</li>
+<li>향후 <code>.md</code> 수정 시 3개 변환기 (<code>md_to_html</code>, <code>md_to_confluence</code>,
+  <code>md_to_confluence_storage</code>) 를 묶는 <code>scripts/export_docs.sh</code> 고려.</li>
+</ul>

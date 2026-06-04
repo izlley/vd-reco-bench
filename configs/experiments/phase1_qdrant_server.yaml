@@ -1,0 +1,22 @@
+experiment_id: phase1_full
+description: Qdrant server-mode (gRPC) 평가 — ML-25M + Amazon Beauty
+datasets:
+  - configs/datasets/ml25m.yaml
+  - configs/datasets/amazon_beauty.yaml
+model: configs/models/two_tower_base.yaml
+retrievers:
+  - configs/retrievers/qdrant_server.yaml
+evaluation:
+  ks: [10, 100]
+  latency:
+    mode: both
+    concurrencies: [1, 4, 16, 64]
+    warmup_queries: 200
+    min_measured_queries: 1000
+    min_measured_seconds: 2
+  power:
+    sample_interval_ms: 100
+    baseline_idle_seconds: 1
+cost_model: configs/cost_model.yaml
+reporting:
+  output_dir: results/phase1_qdrant_server

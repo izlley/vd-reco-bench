@@ -1,0 +1,55 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 1
+topic: confluence-storage-export
+status: completed
+{info}
+
+
+h1. reports 문서의 Confluence Storage Format (XHTML) 변환
+
+h2. What changed
+
+* {{scripts/md_to_confluence_storage.py}} 추가 — markdown → Confluence
+  Storage Format (XHTML 기반) 변환기.
+* {{reports/confluence_storage/}} 에 23개 문서를 {{.storage.xml}} 로 변환.
+* {{reports/confluence_storage/README.md}} — REST API 업로드 방법, 변환
+  매핑, 한계.
+* 원본 {{.md}} 유지. 이제 export 형식이 3종: html / wiki markup / storage.
+
+storage format 매핑:
+* 코드블록 → {{<ac:structured-macro ac:name="code">}} + CDATA
+* frontmatter → {{<ac:structured-macro ac:name="info">}} 패널 (table)
+* 블록 수식 → {{<ac:structured-macro ac:name="noformat">}} (raw TeX)
+* 인라인 수식 → {{<code>}}
+* 이미지 → {{<ac:image><ri:attachment ri:filename=".."/></ac:image>}}
+* 제목/표/리스트/강조 → 표준 XHTML (storage format 이 그대로 수용)
+
+h2. Why
+
+* 사용자가 wiki markup (legacy) 이 아닌 *storage format (XHTML)* 을
+  요청. storage format 은 Confluence REST API 의 {{body.storage.value}}
+  에 직접 넣을 수 있어 *자동 업로드/동기화에 적합* (wiki markup 은
+  신규 Confluence Cloud 에서 수동 붙여넣기만 가능한 경우 많음).
+* markdown→HTML 파이프라인 ({{md_to_html.py}}) 의 수식 보호 전략을 재사용
+  하고, Python-Markdown 을 {{output_format="xhtml"}} 로 돌려 self-closing
+  태그를 보장한 뒤, code/panel/image 만 storage 매크로로 후처리.
+
+h2. Validation
+
+* 23개 파일 모두:
+** NUL byte / 미복원 placeholder 0건 (Python 검증; shell {{$'\x00'}}
+    grep 은 null 전달 불가로 false positive 였음).
+** 단일 root 로 감싼 뒤 {{xml.etree}} 파싱 → *전부 well-formed XML*.
+* code 매크로 CDATA, info 패널, noformat 수식, ac:image attachment,
+  XHTML 표 모두 생성 확인.
+* LaTeX subscript {{_}} 깨짐 0건 (수식 보호 재사용).
+
+h2. Open questions / next
+
+* 이미지({{ri:attachment}})는 해당 png 가 Confluence 페이지에 첨부돼야
+  표시됨 → 업로드 자동화 시 attachment API 호출 필요.
+* LaTeX 렌더는 Confluence LaTeX 매크로 플러그인 필요 (noformat 은 소스만).
+* 내부 페이지 링크({{<ac:link>}})는 대상 페이지 제목 의존이라 수동 처리.
+* 향후 {{.md}} 수정 시 3개 변환기 ({{md_to_html}}, {{md_to_confluence}},
+  {{md_to_confluence_storage}}) 를 묶는 {{scripts/export_docs.sh}} 고려.

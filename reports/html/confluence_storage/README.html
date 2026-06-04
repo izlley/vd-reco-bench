@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>README · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+
+<h1 id="reportsconfluence_storage">reports/confluence_storage/</h1>
+<p><code>reports/</code> 의 markdown 문서를 <strong>Confluence Storage Format</strong> (XHTML 기반)
+으로 변환한 사본이다. wiki markup (<code>reports/confluence/</code>) 과 달리
+<code>&lt;ac:structured-macro&gt;</code> 등 Confluence 네임스페이스 태그를 사용하며,
+<strong>REST API 의 <code>body.storage.value</code></strong> 에 그대로 넣거나 페이지 본문으로
+import 할 수 있다. 원본은 <code>reports/</code> 의 <code>.md</code> 파일이다.</p>
+<h2 id="export">세 가지 export 형식 비교</h2>
+<table>
+<thead>
+<tr>
+<th>디렉토리</th>
+<th>형식</th>
+<th>용도</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reports/</code></td>
+<td>Markdown</td>
+<td>원본 (source of truth)</td>
+</tr>
+<tr>
+<td><code>reports/html/</code></td>
+<td>standalone HTML</td>
+<td>브라우저 열람, 정적 호스팅</td>
+</tr>
+<tr>
+<td><code>reports/confluence/</code></td>
+<td>Wiki Markup (legacy)</td>
+<td>편집기 "Insert Wiki Markup" 붙여넣기</td>
+</tr>
+<tr>
+<td><code>reports/confluence_storage/</code></td>
+<td>Storage Format (XHTML)</td>
+<td>REST API 업로드, 페이지 본문</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_1">생성 방법</h2>
+<pre><code class="language-bash">python scripts/md_to_confluence_storage.py            # 전체
+python scripts/md_to_confluence_storage.py &lt;file.md&gt;  # 단일 파일
+</code></pre>
+<p><code>.storage.xml</code> 파일은 생성물이므로 직접 편집하지 않는다 (원본 <code>.md</code> 를
+고치고 재생성).</p>
+<h2 id="confluence">Confluence 에 올리는 법</h2>
+<h3 id="1-rest-api">방법 1 — REST API (권장)</h3>
+<pre><code class="language-bash">curl -u &lt;user&gt;:&lt;api_token&gt; -X POST \
+  &quot;https://&lt;your-domain&gt;.atlassian.net/wiki/rest/api/content&quot; \
+  -H &quot;Content-Type: application/json&quot; \
+  -d @- &lt;&lt;JSON
+{
+  &quot;type&quot;: &quot;page&quot;,
+  &quot;title&quot;: &quot;reco_bench · 01 메트릭 설계&quot;,
+  &quot;space&quot;: { &quot;key&quot;: &quot;&lt;SPACE_KEY&gt;&quot; },
+  &quot;body&quot;: { &quot;storage&quot;: {
+    &quot;value&quot;: $(python -c &quot;import json,sys; print(json.dumps(open('reports/confluence_storage/01_metric_design.storage.xml').read()))&quot;),
+    &quot;representation&quot;: &quot;storage&quot;
+  }}
+}
+JSON
+</code></pre>
+<h3 id="2">방법 2 — 수동</h3>
+<p>페이지 편집 → <code>...</code> → <strong>Insert</strong> → "Other macros" 가 아니라, 신규
+에디터에서는 storage format 직접 붙여넣기가 막혀 있을 수 있다. 그 경우
+REST API 또는 Confluence Data Center 의 source editor 를 사용.</p>
+<h2 id="_2">변환 매핑</h2>
+<table>
+<thead>
+<tr>
+<th>Markdown</th>
+<th>Storage Format</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>제목/리스트/강조/표</td>
+<td>표준 XHTML (<code>&lt;h1&gt;</code>, <code>&lt;ul&gt;</code>, <code>&lt;strong&gt;</code>, <code>&lt;table&gt;</code> ...)</td>
+</tr>
+<tr>
+<td><code>```lang … ```</code></td>
+<td><code>&lt;ac:structured-macro ac:name="code"&gt;</code> + CDATA</td>
+</tr>
+<tr>
+<td>frontmatter</td>
+<td><code>&lt;ac:structured-macro ac:name="info"&gt;</code> 패널</td>
+</tr>
+<tr>
+<td>블록 수식 <code>\[…\]</code></td>
+<td><code>&lt;ac:structured-macro ac:name="noformat"&gt;</code> (raw TeX)</td>
+</tr>
+<tr>
+<td>인라인 수식 <code>\(…\)</code></td>
+<td><code>&lt;code&gt;…&lt;/code&gt;</code></td>
+</tr>
+<tr>
+<td>이미지 <code>![](figures/x.png)</code></td>
+<td><code>&lt;ac:image&gt;&lt;ri:attachment ri:filename="x.png"/&gt;&lt;/ac:image&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_3">알려진 한계</h2>
+<ul>
+<li><strong>이미지</strong>: <code>&lt;ri:attachment&gt;</code> 매크로는 해당 파일명이 <strong>그 Confluence
+  페이지에 첨부</strong>되어 있을 때만 표시된다. <code>reports/figures/*.png</code> 를
+  페이지에 먼저 attach 해야 한다 (REST API 의 attachment 엔드포인트).</li>
+<li><strong>LaTeX</strong>: <code>{noformat}</code> 으로 raw TeX 소스만 보인다. 렌더하려면
+  Confluence LaTeX 매크로 플러그인 설치 후 <code>&lt;ac:structured-macro
+  ac:name="latex"&gt;</code> 로 교체.</li>
+<li><strong>내부 링크</strong>: storage format 의 페이지 간 링크(<code>&lt;ac:link&gt;</code>)는 대상
+  페이지 제목에 의존하므로 자동 변환하지 않았다. <code>.md</code> → <code>.html</code> anchor
+  로만 rewrite 했으니, Confluence 업로드 후 필요 시 수동으로 <code>&lt;ac:link&gt;</code>
+  로 교체.</li>
+</ul>
+</body>
+</html>

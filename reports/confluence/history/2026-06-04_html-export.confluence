@@ -1,0 +1,56 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 1
+topic: html-export
+status: completed
+{info}
+
+
+h1. reports 문서의 HTML 변환
+
+h2. What changed
+
+* {{scripts/md_to_html.py}} 추가 — markdown → standalone HTML 변환기.
+* {{reports/html/}} 에 22개 문서를 self-contained {{.html}} 로 변환 +
+  {{index.html}} (목차) + {{figures/*.png}} 복사.
+* 원본 {{.md}} 유지. Confluence export ({{reports/confluence/}}) 와 병존.
+
+특징:
+* *Python-Markdown* + extensions (tables, fenced_code, toc,
+  attr_list, sane_lists).
+* *LaTeX 수식*: markdown 처리 *전에* {{$$..$$}} / {{$..$}} 를 placeholder
+  로 추출 → 변환 후 {{\[..\]}} / {{\(..\)}} 로 복원 → *MathJax* (CDN) 가
+  브라우저에서 렌더. arithmatex extension 의 인라인/블록 경계 버그를
+  피하기 위해 자체 보호 전처리 사용.
+* *달러 충돌 방지*: MathJax 의 {{$...$}} 인식을 끄고 {{\(..\)}}만 인식 →
+  {{$0.0984}} 같은 가격 표기가 수식으로 오인되지 않음.
+* 내부 {{.md}} 링크 → {{.html}} 로 rewrite (문서 간 상호 이동).
+* frontmatter → 상단 메타 박스, GitHub 풍 임베디드 CSS.
+
+h2. Why
+
+* 사용자가 Confluence Wiki Markup 외에 *HTML 형식* 도 요청.
+* 변환기 스크립트로 구현한 이유는 confluence export 와 동일 — 원본
+  {{.md}} 가 source of truth 이고, 바뀌면 재생성. 수작업 drift 방지.
+* standalone HTML 로 만들어 브라우저로 바로 열람 가능 (사내 위키 첨부,
+  정적 호스팅, 이메일 첨부 등 다용도).
+
+h2. Validation
+
+* 22개 HTML 모두 파서로 무결성 확인 + placeholder 잔존 0건.
+* LaTeX subscript {{_}} 깨짐 ({{<em _...>}}) 0건 — 자체 math 보호로 해결
+  (arithmatex 단독으로는 첫 {{$$}} 블록 1개를 놓쳤음).
+* 블록/인라인 수식 {{\[..\]}} / {{\(..\)}} 정상 복원.
+* 가격 {{$0.0984}} 평문 유지 (수식 오인 없음).
+* 표 → {{<table>}}, 내부 링크 → {{.html}}, frontmatter → metabox 정상.
+* {{index.html}} + {{figures/}} 가 {{python scripts/md_to_html.py}} 한 번에
+  함께 생성됨.
+
+h2. Open questions / next
+
+* 이미지 렌더는 {{baseline_results.html}} 만 해당 (figures 참조). 다른
+  문서의 ASCII 다이어그램은 {{<pre>}} 로 그대로 표시.
+* 정적 사이트로 배포하려면 {{reports/html/}} 를 GitHub Pages 또는 사내
+  static host 에 올리면 됨 (index.html 이 진입점).
+* 향후 {{.md}} 수정 시 {{scripts/md_to_html.py}} + {{md_to_confluence.py}}
+  둘 다 재실행 필요 — {{scripts/99_make_report.sh}} 처럼 묶는 것 고려.

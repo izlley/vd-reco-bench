@@ -54,7 +54,14 @@ def build_all(config_path: str | Path) -> dict:
             except ImportError as e:
                 print(f"    [skip] {r_cfg['name']}: import failed ({e}).")
                 continue
-            stats = retr.build(item_emb, item_ids, r_cfg["build"])
+            # client/server retriever (Milvus, Qdrant server) 는 단일 서버에
+            # collection 으로 공존하므로 dataset 별로 고유 이름이 필요하다.
+            # (in-process 파일 기반 retriever 는 별도 디렉토리라 무관하지만
+            #  collection_name 에 dataset 을 붙여도 안전하다.)
+            build_cfg = dict(r_cfg["build"])
+            if "collection_name" in build_cfg:
+                build_cfg["collection_name"] = f"{build_cfg['collection_name']}_{ds_name}"
+            stats = retr.build(item_emb, item_ids, build_cfg)
             idx_dir = ensure_dir(Path("indexes") / r_cfg["name"] / ds_name)
             retr.save(idx_dir)
             # 디스크 크기 갱신

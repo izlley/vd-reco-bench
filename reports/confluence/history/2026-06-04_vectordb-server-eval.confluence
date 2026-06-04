@@ -1,0 +1,78 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 1
+topic: vectordb-server-eval
+status: completed
+{info}
+
+
+h1. Vector DB server-mode 평가 (Qdrant gRPC)
+
+h2. What changed
+
+* 사용자 요청: Milvus/Qdrant 를 *Docker server mode* 로 평가.
+* *Docker 불가 판정*: 본 pod 는 {{docker}} CLI 없음, {{/var/run/docker.sock}}
+  없음, 이미 Kubernetes 컨테이너 안 → Docker-in-Docker 불가.
+* *대안 — standalone 바이너리 server mode*:
+** *Qdrant*: 1.12.4 standalone 바이너리 (Rust, 단일 파일) 를
+    {{/tmp/qdrant}} 로 받아 {{localhost:6334}}(gRPC) / {{6333}}(HTTP) 서버
+    기동. Docker 와 동등한 client/server 측정.
+** *Milvus*: standalone 이 object storage(minio) + etcd 의존.
+    deb 패키지엔 minio 없고 (게다가 deb 가 EOF 로 lib 잘림) →
+    *Docker 없이 비현실적* 으로 판단, 측정 생략.
+* 추가 파일:
+** {{reco_bench/retrievers/qdrant_server.py}} — gRPC client/server
+    retriever ({{QdrantClient(host, grpc_port, prefer_grpc=True)}}).
+** {{configs/retrievers/qdrant_server.yaml}}.
+** {{scripts/combine_results.py}} — 여러 metrics.json 통합.
+* *버그 수정*: 단일 Qdrant 서버에 ML-25M·Amazon 이 같은 collection
+  이름({{reco_bench_server}})을 써서 두 번째 build 가 첫 번째를 덮어쓰는
+  문제 → recall 0.0. {{build_index.py}} 가 collection_name 에 dataset
+  suffix 를 붙이도록 수정 ({{reco_bench_server_<dataset>}}). self-retrieval
+  top-1 hit 1.00 으로 회복 확인.
+
+h2. 측정 결과
+
+||Dataset||Retriever||recall@10 vs exact||QPS (max c)||$/1M||
+|ML-25M|qdrant_server (gRPC)|1.0000|743|$0.5306|
+|Amazon Beauty|qdrant_server (gRPC)|1.0000|550|$0.7177|
+
+in-process ANN 라이브러리 대비:
+* ML-25M: FAISS-CPU HNSW 332k QPS → Qdrant server 743 (*~447×* 차이)
+* Amazon Beauty: FAISS-CPU HNSW 102k → Qdrant 550 (*~186×*)
+
+통합 후 {{baseline_results.md}} 는 5 retriever (FAISS / cuVS-IVFPQ /
+cuVS-CAGRA / ScaNN / Qdrant-server) × 2 dataset = 47 grid rows.
+
+h2. Why
+
+* Docker 가 안 되는 환경에서도 *진짜 client/server 측정* 을 하기 위해
+  Qdrant standalone 바이너리를 사용. 이는 Docker 컨테이너로 띄운 것과
+  동일한 gRPC round-trip 경로를 거치므로 server-mode 측정으로 유효.
+* Qdrant 의 낮은 QPS (743/550) 는 엔진이 느려서가 아니라 **per-query
+  gRPC round-trip** + 본 retriever 가 batch search 를 안 쓴 한계 때문.
+  이를 findings 에 명시 (lower bound).
+* Milvus 는 minio 의존 때문에 시간 대비 성공률이 낮아 생략하고, 그
+  사유를 명확히 기록 (in-process Lite lower bound 만 보유).
+
+h2. Validation
+
+* Qdrant 서버 health check: {{/healthz}} passed, gRPC 6334 listening.
+* self-retrieval top-1 hit rate 1.00 (collection 분리 수정 후).
+* recall@10 vs exact = 1.0000 (두 dataset 모두) — 정확도 정상.
+* 47-row 통합 metrics.json 으로 report 재생성, speedup table 에
+  qdrant_server 가 baseline(가장 느림)으로 자동 반영.
+
+h2. Open questions / next
+
+* *GPU keepalive 버그 발견·수정*: keepalive 가 CPU-only eval
+  ({{pipelines.evaluate}}) 을 GPU experiment 로 오인 → dummy 를 꺼서 GPU
+  idle (pod 종료 위험) + hang-detection 으로 eval kill 위험.
+  {{gpu_keepalive_reco.sh}} 의 experiment 패턴에서 evaluate/build_index
+  를 제거하고 {{train}} 만 GPU experiment 로 인식하도록 수정. 이제 CPU
+  eval 중에도 dummy 가 GPU 를 채운다.
+* Qdrant *batch search* API 로 재측정하면 throughput 크게 상승할 것
+  (per-query → batch round-trip 상각). 향후 개선.
+* Milvus server: Docker 가능한 환경 (별도 호스트/VM) 에서 측정 권장.
+* VDPU 영업 비교는 *같은 배포 형태끼리* (in-process vs in-process,
+  server vs server) 해야 공정 — findings §4.3 에 명시.

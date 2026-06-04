@@ -152,6 +152,27 @@ window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]
 <td>completed</td>
 <td>reports 문서 21개를 Confluence Wiki Markup 으로 변환 (<code>scripts/md_to_confluence.py</code> → <code>reports/confluence/</code>). 원본 .md 는 유지.</td>
 </tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_html-export.html">html-export</a></td>
+<td>completed</td>
+<td>reports 문서 22개를 standalone HTML 로 변환 (<code>scripts/md_to_html.py</code> → <code>reports/html/</code>, MathJax 수식 렌더 + index.html + figures). 원본 .md 유지.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_confluence-storage-export.html">confluence-storage-export</a></td>
+<td>completed</td>
+<td>reports 문서 23개를 Confluence Storage Format (XHTML) 으로 변환 (<code>scripts/md_to_confluence_storage.py</code> → <code>reports/confluence_storage/</code>). REST API 업로드용. 전부 well-formed XML.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_vectordb-server-eval.html">vectordb-server-eval</a></td>
+<td>completed</td>
+<td>Vector DB <strong>server-mode</strong> 평가. Docker 불가 → Qdrant standalone 바이너리 gRPC 서버로 측정 (ML-25M 743 QPS / Amazon 550, recall 1.0). Milvus 는 minio 의존으로 생략. keepalive 의 CPU-eval 오인 버그 수정. 5 retriever × 2 dataset 통합.</td>
+</tr>
 </tbody>
 </table>
 </body>

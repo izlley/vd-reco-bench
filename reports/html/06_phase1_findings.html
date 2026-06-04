@@ -70,8 +70,8 @@ window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]
 <td>24k items × nlist 4096 (cluster 당 6 items) 면 PQ 압축 효과 미미. recall vs exact max 0.46. → <strong>Phase 2 의 큰 corpus (수백만 items) 에서 IVF-PQ 의 진가 측정해야</strong></td>
 </tr>
 <tr>
-<td><strong>Milvus Lite / Qdrant Local in-process 모드는 매우 느림</strong></td>
-<td>Milvus Lite QPS 227 vs FAISS HNSW 290k — <strong>1300× 느림</strong>. Vector DB 서버는 server mode 또는 production 환경에서야 진정한 비교 가능.</td>
+<td><strong>Vector DB 는 in-process ANN 라이브러리보다 현저히 느림</strong></td>
+<td>Qdrant <strong>server (gRPC)</strong> 743 QPS(ML-25M) / 550(Amazon) vs FAISS HNSW 332k/102k — <strong>186~447× 느림</strong>. per-query RPC round-trip 비용. 단 batch API 미사용 lower bound. Milvus server 는 Docker 없이 비현실적.</td>
 </tr>
 <tr>
 <td><strong>Recall@10 vs ground truth 가 낮다고 ANN 비교 의미가 없는 게 아님</strong></td>
@@ -212,18 +212,35 @@ stretch 의 synthetic 10M-item corpus.</p>
   데이터셋 에서 의미가 있다. ML-25M 결과를 영업 자료로 인용하면 오해
   여지.</li>
 </ul>
-<h3 id="43-vector-db-milvus-lite-qdrant-local">4.3 Vector DB (Milvus Lite, Qdrant Local) 의 위치</h3>
-<ul>
-<li>Milvus Lite 의 in-process 모드는 query 당 collection load 와 metadata
-  관리 overhead 가 매우 큼.</li>
-<li>측정 결과 QPS 227 vs FAISS HNSW 의 290k — <strong>1300배 느림</strong>.</li>
-<li>이는 vector DB 의 <strong>server mode (Docker)</strong> 에서는 production-grade
-  성능을 보일 수 있음을 의미하지만, <strong>in-process 비교는 fair 하지
-  않음</strong>.</li>
-<li>Phase 1 의 frame 은 in-process measurement 만 제공; <strong>서버 모드는
-  network latency 포함 → 별도 protocol 필요</strong> (Phase 2 또는 별도
-  benchmark).</li>
-</ul>
+<h3 id="43-vector-db-in-process-vs-server-mode">4.3 Vector DB 의 위치 — in-process vs server mode</h3>
+<p><strong>in-process (Milvus Lite):</strong>
+- query 당 collection load / metadata 관리 overhead 가 매우 큼.
+- ML-25M 에서 QPS 227 vs FAISS HNSW 290k — <strong>약 1300배 느림</strong> (부분 측정).
+- in-process 비교는 fair 하지 않아 lower bound 로만 기록.</p>
+<p><strong>server mode (Qdrant gRPC, standalone 서버):</strong>
+- Qdrant 1.12.4 standalone 바이너리를 localhost:6334(gRPC) 로 띄워 측정
+  (Docker 불가 환경이라 바이너리 직접 실행; <code>reports/history/2026-06-04_vectordb-server-eval.md</code>).
+- recall@10 vs exact <strong>1.0000</strong> (정확도 정상), QPS <strong>743 (ML-25M) /
+  550 (Amazon Beauty)</strong>.
+- in-process ANN 라이브러리 대비 매우 낮은 throughput:
+  - ML-25M: FAISS-CPU HNSW 332k QPS → Qdrant server 743 QPS (<strong>약 447×</strong> 차이)
+  - Amazon Beauty: FAISS-CPU HNSW 102k → Qdrant 550 (<strong>약 186×</strong>)
+- 원인: <strong>per-query gRPC round-trip</strong> (client→server 직렬화 + 네트워크
+  + 역직렬화). 추천 retrieval 의 실제 production 도 vector DB 를 RPC 로
+  호출하면 이 비용을 치른다.
+- <strong>측정 한계</strong>: 본 retriever 는 query 를 한 개씩 <code>query_points</code> 로 호출
+  (batch API 미사용). Qdrant 의 batch search 를 쓰면 round-trip 분할
+  상각으로 throughput 이 크게 오른다 → 현재 Qdrant server QPS 는
+  <strong>per-query 모드의 lower bound</strong>.</p>
+<p><strong>Milvus server mode:</strong>
+- standalone 이 object storage(minio) + etcd 의존이라 <strong>Docker 없는 본
+  환경에서는 비현실적</strong> 으로 판단 → 측정 생략, in-process(Lite) lower
+  bound 만 보유.</p>
+<p><strong>시사점</strong>: "ANN 라이브러리(in-process) vs vector DB(client/server)" 는
+<strong>아키텍처가 다른 비교</strong>다. vector DB 의 네트워크 비용은 운영 편의성
+(분산, 영속성, multi-tenancy)의 대가다. VDPU 의 영업 narrative 에서는
+<strong>같은 배포 형태끼리</strong> 비교해야 공정하다 (예: VDPU-가속 vector DB
+vs GPU-가속 vector DB, 또는 VDPU in-process vs GPU in-process).</p>
 <h3 id="44-scann-cpu">4.4 ScaNN 의 CPU 강자 입지 (미완 측정)</h3>
 <ul>
 <li>Phase 1 의 첫 평가 cycle 에서는 milvus_lite 의 느린 측정으로 인해

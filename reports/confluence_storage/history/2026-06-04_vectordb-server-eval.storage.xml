@@ -1,0 +1,91 @@
+<ac:structured-macro ac:name="info"><ac:parameter ac:name="title">metadata</ac:parameter><ac:rich-text-body><table><tbody><tr><th>date</th><td>2026-06-04</td></tr><tr><th>phase</th><td>1</td></tr><tr><th>topic</th><td>vectordb-server-eval</td></tr><tr><th>status</th><td>completed</td></tr></tbody></table></ac:rich-text-body></ac:structured-macro>
+<h1>Vector DB server-mode 평가 (Qdrant gRPC)</h1>
+<h2>What changed</h2>
+<ul>
+<li>사용자 요청: Milvus/Qdrant 를 <strong>Docker server mode</strong> 로 평가.</li>
+<li><strong>Docker 불가 판정</strong>: 본 pod 는 <code>docker</code> CLI 없음, <code>/var/run/docker.sock</code>
+  없음, 이미 Kubernetes 컨테이너 안 → Docker-in-Docker 불가.</li>
+<li><strong>대안 — standalone 바이너리 server mode</strong>:</li>
+<li><strong>Qdrant</strong>: 1.12.4 standalone 바이너리 (Rust, 단일 파일) 를
+    <code>/tmp/qdrant</code> 로 받아 <code>localhost:6334</code>(gRPC) / <code>6333</code>(HTTP) 서버
+    기동. Docker 와 동등한 client/server 측정.</li>
+<li><strong>Milvus</strong>: standalone 이 object storage(minio) + etcd 의존.
+    deb 패키지엔 minio 없고 (게다가 deb 가 EOF 로 lib 잘림) →
+    <strong>Docker 없이 비현실적</strong> 으로 판단, 측정 생략.</li>
+<li>추가 파일:</li>
+<li><code>reco_bench/retrievers/qdrant_server.py</code> — gRPC client/server
+    retriever (<code>QdrantClient(host, grpc_port, prefer_grpc=True)</code>).</li>
+<li><code>configs/retrievers/qdrant_server.yaml</code>.</li>
+<li><code>scripts/combine_results.py</code> — 여러 metrics.json 통합.</li>
+<li><strong>버그 수정</strong>: 단일 Qdrant 서버에 ML-25M·Amazon 이 같은 collection
+  이름(<code>reco_bench_server</code>)을 써서 두 번째 build 가 첫 번째를 덮어쓰는
+  문제 → recall 0.0. <code>build_index.py</code> 가 collection_name 에 dataset
+  suffix 를 붙이도록 수정 (<code>reco_bench_server_&lt;dataset&gt;</code>). self-retrieval
+  top-1 hit 1.00 으로 회복 확인.</li>
+</ul>
+<h2>측정 결과</h2>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Retriever</th>
+<th>recall@10 vs exact</th>
+<th>QPS (max c)</th>
+<th>$/1M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ML-25M</td>
+<td>qdrant_server (gRPC)</td>
+<td>1.0000</td>
+<td>743</td>
+<td>$0.5306</td>
+</tr>
+<tr>
+<td>Amazon Beauty</td>
+<td>qdrant_server (gRPC)</td>
+<td>1.0000</td>
+<td>550</td>
+<td>$0.7177</td>
+</tr>
+</tbody>
+</table>
+<p>in-process ANN 라이브러리 대비:
+- ML-25M: FAISS-CPU HNSW 332k QPS → Qdrant server 743 (<strong>~447×</strong> 차이)
+- Amazon Beauty: FAISS-CPU HNSW 102k → Qdrant 550 (<strong>~186×</strong>)</p>
+<p>통합 후 <code>baseline_results.md</code> 는 5 retriever (FAISS / cuVS-IVFPQ /
+cuVS-CAGRA / ScaNN / Qdrant-server) × 2 dataset = 47 grid rows.</p>
+<h2>Why</h2>
+<ul>
+<li>Docker 가 안 되는 환경에서도 <strong>진짜 client/server 측정</strong> 을 하기 위해
+  Qdrant standalone 바이너리를 사용. 이는 Docker 컨테이너로 띄운 것과
+  동일한 gRPC round-trip 경로를 거치므로 server-mode 측정으로 유효.</li>
+<li>Qdrant 의 낮은 QPS (743/550) 는 엔진이 느려서가 아니라 <strong>per-query
+  gRPC round-trip</strong> + 본 retriever 가 batch search 를 안 쓴 한계 때문.
+  이를 findings 에 명시 (lower bound).</li>
+<li>Milvus 는 minio 의존 때문에 시간 대비 성공률이 낮아 생략하고, 그
+  사유를 명확히 기록 (in-process Lite lower bound 만 보유).</li>
+</ul>
+<h2>Validation</h2>
+<ul>
+<li>Qdrant 서버 health check: <code>/healthz</code> passed, gRPC 6334 listening.</li>
+<li>self-retrieval top-1 hit rate 1.00 (collection 분리 수정 후).</li>
+<li>recall@10 vs exact = 1.0000 (두 dataset 모두) — 정확도 정상.</li>
+<li>47-row 통합 metrics.json 으로 report 재생성, speedup table 에
+  qdrant_server 가 baseline(가장 느림)으로 자동 반영.</li>
+</ul>
+<h2>Open questions / next</h2>
+<ul>
+<li><strong>GPU keepalive 버그 발견·수정</strong>: keepalive 가 CPU-only eval
+  (<code>pipelines.evaluate</code>) 을 GPU experiment 로 오인 → dummy 를 꺼서 GPU
+  idle (pod 종료 위험) + hang-detection 으로 eval kill 위험.
+  <code>gpu_keepalive_reco.sh</code> 의 experiment 패턴에서 evaluate/build_index
+  를 제거하고 <code>train</code> 만 GPU experiment 로 인식하도록 수정. 이제 CPU
+  eval 중에도 dummy 가 GPU 를 채운다.</li>
+<li>Qdrant <strong>batch search</strong> API 로 재측정하면 throughput 크게 상승할 것
+  (per-query → batch round-trip 상각). 향후 개선.</li>
+<li>Milvus server: Docker 가능한 환경 (별도 호스트/VM) 에서 측정 권장.</li>
+<li>VDPU 영업 비교는 <strong>같은 배포 형태끼리</strong> (in-process vs in-process,
+  server vs server) 해야 공정 — findings §4.3 에 명시.</li>
+</ul>

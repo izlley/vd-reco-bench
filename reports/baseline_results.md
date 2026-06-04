@@ -14,10 +14,12 @@
 | amazon_beauty | cuvs_cagra | cuda | 0.9993 | 0.0077 | 0.0048 | 13,839 | 12.38 | $0.0984 | 0.00 |
 | amazon_beauty | cuvs_ivfpq | cuda | 0.5477 | 0.0076 | 0.0050 | 11,599 | 6.97 | $0.1173 | 0.00 |
 | amazon_beauty | faiss_hnsw_cpu | cpu | 0.9973 | 0.0077 | 0.0048 | 38,711 | 1.15 | $0.0102 | 0.00 |
+| amazon_beauty | qdrant_server | cpu | 1.0000 | 0.0077 | 0.0048 | 550 | 2.41 | $0.7177 | 0.22 |
 | amazon_beauty | scann_cpu | cpu | 0.9874 | 0.0077 | 0.0048 | 5,196 | 0.51 | $0.0759 | 0.02 |
 | ml25m | cuvs_cagra | cuda | 1.0000 | 0.0195 | 0.1161 | 4,469 | 77.15 | $0.3046 | 0.02 |
 | ml25m | cuvs_ivfpq | cuda | 0.4649 | 0.0231 | 0.1304 | 1,055 | 61.03 | $0.9695 | 0.05 |
 | ml25m | faiss_hnsw_cpu | cpu | 1.0000 | 0.0195 | 0.1161 | 189,739 | 0.18 | $0.0021 | 0.00 |
+| ml25m | qdrant_server | cpu | 1.0000 | 0.0195 | 0.1161 | 743 | 1.79 | $0.5306 | 0.16 |
 
 ## Iso-recall speedup (Recall@10 vs exact ≥ 0.95)
 
@@ -25,11 +27,13 @@
 
 | Dataset | Retriever | Device | QPS | Speedup vs slowest |
 |---|---|---|---|---|
-| amazon_beauty | scann_cpu | cpu | 5,196 | 1.00× |
-| amazon_beauty | cuvs_cagra | cuda | 14,909 | 2.87× |
-| amazon_beauty | faiss_hnsw_cpu | cpu | 102,126 | 19.65× |
-| ml25m | cuvs_cagra | cuda | 4,469 | 1.00× |
-| ml25m | faiss_hnsw_cpu | cpu | 332,176 | 74.33× |
+| amazon_beauty | qdrant_server | cpu | 550 | 1.00× |
+| amazon_beauty | scann_cpu | cpu | 5,196 | 9.45× |
+| amazon_beauty | cuvs_cagra | cuda | 14,909 | 27.13× |
+| amazon_beauty | faiss_hnsw_cpu | cpu | 102,126 | 185.81× |
+| ml25m | qdrant_server | cpu | 743 | 1.00× |
+| ml25m | cuvs_cagra | cuda | 4,469 | 6.01× |
+| ml25m | faiss_hnsw_cpu | cpu | 332,176 | 446.81× |
 
 ## 시각화
 
