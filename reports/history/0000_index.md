@@ -35,3 +35,4 @@
 | 2026-06-04 | 1 | [phase1-complete](2026-06-04_phase1-complete.md) | completed | **Phase 1 종료.** ML-25M + Amazon Beauty 두 dataset × 4-6 retriever 측정 완료. ML-25M 에서 FAISS-CPU HNSW × 74.33 vs cuVS CAGRA, Amazon Beauty 에서 ×19.65. baseline_results.md 자동 생성 (메인 표 + speedup + 5종 그래프). |
 | 2026-06-04 | 1 | [readme-references](2026-06-04_readme-references.md) | completed | README 에 "참고한 오픈 벤치마크" 섹션 추가 (ann-benchmarks, MLPerf DLRM, VectorDBBench, recommenders, RecBole, Google Two-tower + 데이터셋). 각 항목에 링크 + 반영 위치 명시. |
 | 2026-06-04 | 1 | [confluence-export](2026-06-04_confluence-export.md) | completed | reports 문서 21개를 Confluence Wiki Markup 으로 변환 (`scripts/md_to_confluence.py` → `reports/confluence/`). 원본 .md 는 유지. |
+| 2026-06-04 | 1 | [html-export](2026-06-04_html-export.md) | completed | reports 문서 22개를 standalone HTML 로 변환 (`scripts/md_to_html.py` → `reports/html/`, MathJax 수식 렌더 + index.html + figures). 원본 .md 유지. |

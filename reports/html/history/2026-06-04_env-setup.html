@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_env-setup · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 1 &nbsp;·&nbsp; <b>topic</b>: env-setup &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="phase-1-gpu-retriever-stack">Phase 1 시작: GPU 환경 검증 + retriever stack 결정</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li>사용자가 본 Pod 의 GPU 4 × NVIDIA H100 80GB HBM3 (compute capability
+  9.0) 를 사용 가능하다고 확인. 4대 모두 인식 (<code>nvidia-smi</code>).</li>
+<li>다음 환경 핀이 검증되어 <code>reports/05_reproducibility.md §2</code> 와
+  <code>requirements.txt</code> 에 반영됨:</li>
+<li>Python 3.12.3 (system-wide <code>/usr/local/bin/python</code>)</li>
+<li>CUDA toolkit 12.8 (<code>/usr/local/cuda-12.8</code>)</li>
+<li>GPU driver 535.247.01 (driver bundled CUDA 12.2 runtime)</li>
+<li>PyTorch 2.9.1 (CUDA 12.8 wheel)</li>
+<li>cuVS 26.04 + pylibraft 26.04 + cupy-cuda12x 14.1.1</li>
+<li>faiss-cpu 1.14.2 (CPU baseline 전용)</li>
+<li>sentence-transformers 5.5.1, transformers 5.8.1, datasets 4.8.4</li>
+<li>scikit-learn 1.9.0, nvidia-ml-py</li>
+<li><strong>Retriever stack 의 큰 변경</strong>: 원래 <code>FAISS-GPU IVF-PQ</code> 를 GPU baseline
+  의 메모리 효율 측으로 쓸 계획이었으나, <code>faiss-gpu-cu12</code> pip wheel 이
+  PyTorch 2.9 의 cublas 12.8 ABI 와 충돌 (<code>undefined symbol:
+  cublasLtGetEnvironmentMode</code>). 해당 wheel 을 제거하고 cuVS 가 동일
+  알고리즘 (IVF-PQ) 을 제공하므로 <strong><code>cuvs.neighbors.ivf_pq</code> 로 대체</strong>.</li>
+<li>위 변경에 따라 다음 파일들이 갱신됨:</li>
+<li><code>configs/retrievers/faiss_ivfpq_gpu.yaml</code> → <code>cuvs_ivfpq.yaml</code> (param
+    이름도 cuVS API 에 맞게 <code>nlist</code>→<code>n_lists</code>, <code>nprobe</code>→<code>n_probes</code>,
+    <code>m</code>→<code>pq_dim</code>, <code>nbits</code>→<code>pq_bits</code>).</li>
+<li><code>configs/experiments/phase1_baseline.yaml</code> 의 retriever 리스트.</li>
+<li><code>reports/03_baseline_methodology.md §3.1</code> 의 retriever matrix.</li>
+<li><code>reco_bench/utils/{seed,io,gpu_info}.py</code> 추가 — 학습/평가 파이프라인
+  의 공통 base.</li>
+</ul>
+<h2 id="why">Why</h2>
+<ul>
+<li><strong>cuVS 로 GPU 측 통일</strong> 의 장점:
+  1. PyTorch + cuVS 의 dependency conflict 완전 해소.
+  2. CAGRA 와 IVF-PQ 둘 다 같은 라이브러리 (cuVS 26.04) 안에서 — 동일
+     hardware 캡처, 동일 측정 프로토콜 보장.
+  3. cuVS 는 NVIDIA RAPIDS 의 long-term 지원 라이브러리이며, CUDA 12.8
+     까지 stable wheel 제공. faiss-gpu 는 CUDA 12.x 에서 wheel 지원이
+     불안정.</li>
+<li><strong>CPU-side numpy 반환 contract 와 무관</strong>: cuVS 도 <code>cupy.asnumpy()</code> /
+  <code>__cuda_array_interface__</code> 를 통해 CPU 반환 가능. <code>Retriever.search</code>
+  의 약속을 깨지 않는다.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>nvidia-smi</code> 4× H100 확인 (driver 535, 모두 80GB HBM3).</li>
+<li>PyTorch CUDA matmul on <code>cuda:0</code> 성공: <code>(100, 100) @ (100, 100)</code>.</li>
+<li>cuVS CAGRA build + search smoke test 통과: 1024 items × 128 dim,
+  build 1052 ms, search 98 ms for 10 queries.</li>
+<li>cuVS IVF-PQ 도 <code>from cuvs.neighbors import ivf_pq</code> import 성공.</li>
+<li>faiss-cpu HNSW smoke 통과: 1000 items × 128 dim, top-5 정상 반환.</li>
+<li><code>reco_bench.utils.seed.set_global_seed</code> 가 numpy/torch/PYTHONHASHSEED
+  모두 일관 고정. <code>gpu_info.capture_hardware</code> 로 43 KB hardware dump
+  생성 가능.</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li><strong>GPU 가용성 주의</strong>: 측정 시점에 4대 모두 100% utilization, ~400W 사용
+  중 (다른 사용자의 작업) 인 것을 <code>nvidia-smi</code> 로 확인했다. Phase 1 의
+  학습 중에는 다른 GPU 와 공유가 가능하지만, <strong>Phase 1 의 latency
+  profiling 단계 (Step 6) 에서는 반드시 단일 GPU 전용</strong> 필요. 측정 시간
+  을 사용자와 조율해야 한다.</li>
+<li>다음 단계 = Step 2 (데이터 로더). ML-25M 부터.</li>
+<li>pip uninstall faiss-gpu-cu12 후 faiss-cpu 가 깨지는 buggy interaction
+  이 있어 <code>--force-reinstall --no-deps</code> 로 복구한 점은 한 번 더 발생할
+  여지가 있어 <code>reports/05_reproducibility.md §2.3</code> 의 트랩 목록에 박아
+  두었다.</li>
+</ul>
+</body>
+</html>

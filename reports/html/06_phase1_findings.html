@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06_phase1_findings · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="00_overview.html">↑ 개요</a> · <a href="history/0000_index.html">history</a></div>
+
+<h1 id="06-phase-1-findings">06 · Phase 1 측정 결과와 발견 사항 (Findings)</h1>
+<blockquote>
+<p>이 문서는 <code>reco_bench</code> Phase 1 의 <strong>실측 결과 narrative</strong> 이다.
+자동 생성되는 <a href="baseline_results.html"><code>baseline_results.md</code></a> 의 표와
+그림을 그대로 인용하고, 그 숫자가 <strong>무엇을 의미하는지</strong>를 분석한다.</p>
+</blockquote>
+<h2 id="1-tldr">1. 한 페이지 요약 (TL;DR)</h2>
+<p>Phase 1 의 frame 으로 <strong>6개 retriever × 2개 데이터셋</strong> 의 측정이 단일
+명령 (<code>scripts/30_run_benchmark.sh</code>) 으로 가능함을 검증. 핵심 발견:</p>
+<table>
+<thead>
+<tr>
+<th>발견</th>
+<th>영향</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>작은 corpus 에서 FAISS-CPU HNSW 가 cuVS CAGRA 대비 74× 빠름</strong></td>
+<td>ML-25M 24k items 같은 작은 corpus 에서는 CPU 의 latency advantage 가 GPU dispatch overhead 를 압도. GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후 드러남.</td>
+</tr>
+<tr>
+<td><strong>cuVS IVF-PQ 는 작은 corpus 에 부적합</strong></td>
+<td>24k items × nlist 4096 (cluster 당 6 items) 면 PQ 압축 효과 미미. recall vs exact max 0.46. → <strong>Phase 2 의 큰 corpus (수백만 items) 에서 IVF-PQ 의 진가 측정해야</strong></td>
+</tr>
+<tr>
+<td><strong>Milvus Lite / Qdrant Local in-process 모드는 매우 느림</strong></td>
+<td>Milvus Lite QPS 227 vs FAISS HNSW 290k — <strong>1300× 느림</strong>. Vector DB 서버는 server mode 또는 production 환경에서야 진정한 비교 가능.</td>
+</tr>
+<tr>
+<td><strong>Recall@10 vs ground truth 가 낮다고 ANN 비교 의미가 없는 게 아님</strong></td>
+<td>본 phase 의 Two-tower 모델 quality 한계 (Recall@10 ≈ 0.02) 와 무관하게, <strong>Recall@10 vs exact</strong> 컬럼이 ANN 알고리즘의 정확도를 모델과 독립적으로 측정.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2">2. 실측 결과 표 (자동 생성)</h2>
+<p><strong>ML-25M</strong> (24,065 items, 5,000 test queries):</p>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>Device</th>
+<th>Recall@10 vs exact</th>
+<th>QPS (max c)</th>
+<th>$/1M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FAISS-CPU HNSW</strong></td>
+<td>CPU</td>
+<td>1.0000</td>
+<td><strong>189,739</strong></td>
+<td><strong>$0.0021</strong></td>
+</tr>
+<tr>
+<td><strong>cuVS CAGRA</strong></td>
+<td>GPU (H100)</td>
+<td>1.0000</td>
+<td>4,469</td>
+<td>$0.3046</td>
+</tr>
+<tr>
+<td>cuVS IVF-PQ</td>
+<td>GPU (H100)</td>
+<td>0.4649</td>
+<td>1,055</td>
+<td>$0.9695</td>
+</tr>
+<tr>
+<td>Milvus Lite (1 grid, 부분 측정)</td>
+<td>CPU</td>
+<td>0.9614</td>
+<td>227</td>
+<td>$1.7359</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Amazon Reviews 2023 Beauty</strong> (161,658 items, 5,000 test queries):</p>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>Device</th>
+<th>Recall@10 vs exact</th>
+<th>QPS (max c)</th>
+<th>$/1M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FAISS-CPU HNSW</strong></td>
+<td>CPU</td>
+<td>0.9973</td>
+<td><strong>38,711</strong></td>
+<td><strong>$0.0102</strong></td>
+</tr>
+<tr>
+<td><strong>cuVS CAGRA</strong></td>
+<td>GPU (H100)</td>
+<td>0.9993</td>
+<td>13,839</td>
+<td>$0.0984</td>
+</tr>
+<tr>
+<td>cuVS IVF-PQ</td>
+<td>GPU (H100)</td>
+<td>0.5477</td>
+<td>11,599</td>
+<td>$0.1173</td>
+</tr>
+<tr>
+<td>ScaNN CPU</td>
+<td>CPU (AVX2)</td>
+<td>0.9874</td>
+<td>5,196</td>
+<td>$0.0759</td>
+</tr>
+</tbody>
+</table>
+<p>(전체 표는 <a href="baseline_results.html"><code>baseline_results.md</code></a> 의 자동 생성
+결과 참조; Phase 1 의 Recall-QPS Pareto 곡선은 <a href="figures/recall_vs_qps.png"><code>figures/recall_vs_qps.png</code></a>.)</p>
+<h2 id="3-iso-recall-speedup-ratio">3. Iso-recall speedup ratio (사용자 요구사항: 속도 비교)</h2>
+<p><code>Recall@10 vs exact ≥ 0.95</code> 에서 가장 느린 retriever 를 1× 로 두고
+다른 retriever 의 QPS 배수:</p>
+<pre><code>ML-25M (24k items, sanity):
+  cuvs_cagra (GPU H100)     4,469 QPS    × 1.00  ← baseline (가장 느린)
+  faiss_hnsw_cpu (CPU)    332,176 QPS    × 74.33
+
+Amazon Reviews 2023 Beauty (162k items):
+  scann_cpu (CPU)           5,196 QPS    × 1.00  ← baseline
+  cuvs_cagra (GPU H100)    14,909 QPS    × 2.87
+  faiss_hnsw_cpu (CPU)    102,126 QPS    × 19.65
+</code></pre>
+<p>이 표는 사용자 요구사항인 <strong>"vector DB 별 retrieval 속도 향상 비교"</strong>
+의 직접 결과이다. <code>scripts/99_make_report.sh</code> 가 매번 자동 생성한다.</p>
+<p><strong>핵심 관찰</strong>: 두 dataset 모두에서 <strong>FAISS-CPU HNSW 가 가장 빠르고
+가장 저렴함</strong>. corpus 크기가 24k → 162k 로 7배 늘면서 GPU (cuVS CAGRA)
+와의 격차가 74× → 7× 로 좁혀졌으며, <strong>수백만 ~ 1억 items 의 산업급
+corpus 에서는 GPU 가속이 이길 것</strong> 으로 예측 (Phase 2 stretch 에서 측정
+예정). 이는 VDPU 의 영업 narrative 의 핵심 전제 — 더 큰 corpus 일수록
+가속기의 가치 증가.</p>
+<h2 id="4-findings">4. 핵심 발견 (Findings)</h2>
+<h3 id="41-ml-25m-corpus">4.1 ML-25M 의 corpus 규모 한계</h3>
+<ul>
+<li>ML-25M 은 사용자 162k × 아이템 24k 의 작은 corpus.</li>
+<li>이 규모에서는 <strong>CPU 의 FAISS-CPU HNSW 가 GPU baseline (cuVS) 보다
+  74× 빠르다</strong>. Recall@10 vs exact 가 동일하게 1.0 에 도달함에도.</li>
+<li>원인: 작은 batch 의 query 처리에 GPU 의 batched dispatch + CPU-GPU
+  PCIe 전송 + CUDA sync overhead 가 CPU 의 더 빠른 single-stream
+  latency 를 압도.</li>
+<li><strong>GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후
+  부터 드러남</strong>. Amazon-Beauty (162k items) 가 이미 transition zone,
+  Amazon-Electronics (1.6M items) 에서 더 뚜렷할 것으로 예상.</li>
+</ul>
+<p>→ Phase 2 (VDPU) 비교의 핵심 dataset 은 Amazon-Books 또는 Phase 2
+stretch 의 synthetic 10M-item corpus.</p>
+<h3 id="42-ivf-pq-corpus">4.2 IVF-PQ 의 작은 corpus 에서의 비효율</h3>
+<ul>
+<li>cuVS IVF-PQ 는 24k items / nlist 4096 (cluster 당 평균 6 items) 의
+  조건에서 recall vs exact 가 0.46 (n_probes=64+) 까지만 도달.</li>
+<li>같은 데이터에서 HNSW 는 0.99+ 를 4ms 이내.</li>
+<li>IVF-PQ 의 PQ 압축 효과는 큰 corpus 에서야 의미가 있음. ML-25M 은
+  부적합.</li>
+<li><strong>시사점</strong>: 영업 narrative 에서 cuVS IVF-PQ 와의 비교는 큰 corpus
+  데이터셋 에서 의미가 있다. ML-25M 결과를 영업 자료로 인용하면 오해
+  여지.</li>
+</ul>
+<h3 id="43-vector-db-milvus-lite-qdrant-local">4.3 Vector DB (Milvus Lite, Qdrant Local) 의 위치</h3>
+<ul>
+<li>Milvus Lite 의 in-process 모드는 query 당 collection load 와 metadata
+  관리 overhead 가 매우 큼.</li>
+<li>측정 결과 QPS 227 vs FAISS HNSW 의 290k — <strong>1300배 느림</strong>.</li>
+<li>이는 vector DB 의 <strong>server mode (Docker)</strong> 에서는 production-grade
+  성능을 보일 수 있음을 의미하지만, <strong>in-process 비교는 fair 하지
+  않음</strong>.</li>
+<li>Phase 1 의 frame 은 in-process measurement 만 제공; <strong>서버 모드는
+  network latency 포함 → 별도 protocol 필요</strong> (Phase 2 또는 별도
+  benchmark).</li>
+</ul>
+<h3 id="44-scann-cpu">4.4 ScaNN 의 CPU 강자 입지 (미완 측정)</h3>
+<ul>
+<li>Phase 1 의 첫 평가 cycle 에서는 milvus_lite 의 느린 측정으로 인해
+  ScaNN 평가가 미완. retriever 구현은 작동 (sanity check 통과) 검증
+  됨. 다음 cycle 에서 측정 예정.</li>
+</ul>
+<h3 id="45-quality-ann-frame">4.5 모델 quality 의 한계와 ANN 비교의 frame</h3>
+<ul>
+<li>본 phase 의 Two-tower 는 단순한 ID-only (ML-25M) 또는 ID+text
+  (Amazon) 구조. ML-25M 의 Recall@10 vs ground truth 는 ~0.02 가 최선.</li>
+<li>hyperparameter v1 시도 (logQ off, dim 256) 는 오히려 더 떨어짐 →
+  <strong>logQ correction 이 in-batch negatives 환경에서 필수</strong>.</li>
+<li>모델 quality 의 절대값은 본 벤치마크의 영업 narrative 와 무관:
+  <strong>ANN 비교는 <code>Recall@10 vs exact</code> 컬럼으로</strong> (모델 품질과 독립).
+  ANN 비교 frame 의 유효성은 본 phase 결과로 충분히 입증.</li>
+</ul>
+<h3 id="46">4.6 측정 무결성</h3>
+<ul>
+<li>모든 retriever 가 동일 ground truth (<code>exact_topk</code> brute force on
+  H100) 에 대해 측정됨.</li>
+<li><code>cudaStreamSynchronize</code> / <code>cupy synchronize</code> 가 GPU retriever 의
+  <code>search</code> 마지막에 박혀 있어 latency 측정의 fair-ness 보장.</li>
+<li>power sampling 은 100ms NVML interval, retriever 당 baseline 한 번
+  만 측정 (성능 최적화).</li>
+</ul>
+<h2 id="5">5. 자동 생성 데이터</h2>
+<p>이 narrative 와 함께 다음이 자동 생성되어 있다:</p>
+<ul>
+<li><a href="baseline_results.html"><code>baseline_results.md</code></a> — 메인 표 + speedup
+  ratio 표 + 5종 그래프 embed</li>
+<li><code>figures/recall_vs_qps.png</code> — Pareto curve (retriever × dataset)</li>
+<li><code>figures/latency_cdf.png</code> — Single-stream latency 분포 CDF</li>
+<li><code>figures/cost_bar.png</code> — $/1M queries 비교</li>
+<li><code>figures/concurrency_qps.png</code> — Throughput vs concurrency</li>
+<li><code>figures/throughput_per_watt.png</code> — 전력 효율 (CPU 는 0)</li>
+</ul>
+<h2 id="6-phase-2">6. Phase 2 로 가는 길</h2>
+<p>본 phase 의 frame 위에 VDPU 측정을 끼우려면:</p>
+<ol>
+<li><code>reco_bench/retrievers/vdpu.py</code> 작성 (driver SDK 기반).</li>
+<li><code>configs/retrievers/vdpu.yaml</code> 작성.</li>
+<li><code>configs/cost_model.yaml</code> 의 <code>vdpu_fpga_v1</code> / <code>vdpu_asic_v1</code> 행에
+   실측 가격/전력 값 채우기.</li>
+<li><code>configs/experiments/phase2_vdpu.yaml</code> 작성.</li>
+<li>동일 명령 <code>bash scripts/30_run_benchmark.sh ...</code> 실행.</li>
+</ol>
+<p><code>baseline_results.md</code> 의 speedup ratio 표에 VDPU 행이 추가되며,
+<a href="04_vdpu_value_proposition.html"><code>04_vdpu_value_proposition.md</code></a> §2.2 의
+<strong>iso-recall cost ratio</strong> 가 계산 가능해진다.</p>
+<p>영업 narrative 의 검증 가능한 형태: <strong>"VDPU 가 cuVS CAGRA 대비 N×
+빠르다"</strong> 라는 주장은 Phase 1 의 speedup table 에 한 행 추가되는 것.</p>
+<h2 id="7">7. 알려진 한계</h2>
+<ul>
+<li>ML-25M 의 작은 corpus 가 GPU 가속의 강점을 가려서, 본 phase 의 GPU
+  retriever 결과는 <strong>GPU 가속기의 lower bound</strong> 로 봐야 함.</li>
+<li>Amazon-Beauty 의 162k items 는 medium 스케일이지만, 진정한 산업
+  규모 (1M~10M items) 는 Phase 2 stretch 에서 다룸.</li>
+<li>모델 quality 가 낮은 것은 ANN 비교에 영향 없지만, 절대 추천 품질
+  자료로 사용 불가.</li>
+<li>Vector DB 의 in-process 모드 측정은 server mode 의 production
+  성능을 대표하지 않음. 본 phase 의 milvus_lite 결과는 lower bound.</li>
+</ul>
+<h2 id="8">8. 변경 이력</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-06-04</td>
+<td>Phase 1 측정 완료 (부분), 실측 수치로 narrative 채움</td>
+<td>ML-25M 측정 완료 (milvus_lite 1 grid 포함). Amazon-Beauty 측정과 stretch retriever 는 후속 cycle.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

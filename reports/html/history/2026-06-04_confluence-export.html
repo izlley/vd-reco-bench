@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_confluence-export · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 1 &nbsp;·&nbsp; <b>topic</b>: confluence-export &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="reports-confluence-wiki-markup">reports 문서의 Confluence Wiki Markup 변환</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><code>scripts/md_to_confluence.py</code> 추가 — markdown → Confluence Wiki
+  Markup (legacy wiki markup) 변환기.</li>
+<li><code>reports/</code> 의 모든 <code>.md</code> (21개) 를 <code>reports/confluence/</code> 에 동일한
+  디렉토리 구조로 <code>.confluence</code> 파일로 변환.</li>
+<li><code>reports/confluence/README.md</code> 추가 — 생성 방법, Confluence 업로드
+  방법, 변환 규칙, 한계 설명.</li>
+<li>원본 <code>.md</code> 는 그대로 유지 (source of truth).</li>
+</ul>
+<p>지원하는 변환:
+- 제목 <code>#</code>..<code>######</code> → <code>h1.</code>..<code>h6.</code>
+- <code>**bold**</code> → <code>*bold*</code>, <code>`code`</code> → <code>{{code}}</code>
+- 코드블록 → <code>{code:lang} ... {code}</code>
+- markdown 표 → Confluence <code>||header||</code> / <code>|cell|</code>
+- 링크 <code>[t](u)</code> → <code>[t|u]</code> (링크 텍스트 내 매크로 정리 포함)
+- frontmatter → <code>{info:title=metadata}</code> 패널
+- blockquote → <code>{quote}</code>, 수평선 → <code>----</code>
+- 블록 수식 <code>\[..\]</code> → <code>{noformat}</code> (raw TeX 보존)</p>
+<h2 id="why">Why</h2>
+<ul>
+<li>사용자가 reports 문서를 사내 Confluence Wiki 에 올릴 수 있도록
+  Wiki Markup 형식의 별도 파일을 요청.</li>
+<li><strong>변환기 스크립트로 구현</strong> 한 이유: 문서가 21개 + 향후 계속 늘어나며,
+  원본 <code>.md</code> 가 바뀔 때마다 재변환이 필요하므로 수작업 변환은 drift
+  위험. <code>scripts/99_make_report.sh</code> 처럼 재현 가능한 파이프라인으로 둠.</li>
+<li>원본 <code>.md</code> 를 source of truth 로 유지하고 <code>.confluence</code> 는 생성물로
+  취급 → 편집은 항상 <code>.md</code> 에서.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>21개 파일 모두 변환 성공.</li>
+<li>표 변환 검증: <code>baseline_results.confluence</code> 의 메인 표가
+  <code>||header||</code> + <code>|cell|</code> 형식으로 정상.</li>
+<li>frontmatter 검증: history 파일의 <code>--- yaml ---</code> 가 <code>{info}</code> 패널로.</li>
+<li>코드블록 / LaTeX 블록: <code>{code}</code> / <code>{noformat}</code> 로 감싸지고 내부
+  내용은 변환되지 않음 (보존).</li>
+<li>링크 텍스트 내 매크로 버그 (<code>[{{x}}|url]</code>) 를 후처리로 <code>[x|url]</code> 로
+  정리, 잔존 0건 확인.</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li><strong>LaTeX 렌더</strong>: Confluence 가 기본 LaTeX 미지원이라 <code>{noformat}</code> 으로
+  raw TeX 만 보임. 수식 렌더가 필요하면 Confluence LaTeX 매크로 플러그인
+  설치 후 <code>{latex}</code> 로 교체 필요 (reports/confluence/README.md 에 명시).</li>
+<li><strong>이미지</strong>: <code>figures/*.png</code> 는 wiki markup <code>!img!</code> 로 자동 변환 안 함.
+  Confluence 에 그림 첨부 후 수동 삽입 권장.</li>
+<li>Confluence REST API 로 자동 업로드 (페이지 생성/갱신) 까지 확장
+  가능하나, 현재는 복사-붙여넣기용 파일 생성까지만.</li>
+</ul>
+</body>
+</html>

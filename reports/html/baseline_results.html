@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>baseline_results · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="00_overview.html">↑ 개요</a> · <a href="history/0000_index.html">history</a></div>
+
+<h1 id="baseline_resultsmd">baseline_results.md — 자동 생성</h1>
+<blockquote>
+<p>이 파일은 <code>scripts/99_make_report.sh</code> 가 자동 생성합니다. 직접 편집
+하지 마세요. 메트릭 정의는 <a href="01_metric_design.html"><code>01_metric_design.md</code></a>,
+방법론은 <a href="03_baseline_methodology.html"><code>03_baseline_methodology.md</code></a> 참조.</p>
+</blockquote>
+<h2 id="_1">메인 결과 표</h2>
+<p>각 (dataset, retriever) 조합에서 <strong>Recall@10 vs exact 가 가장 높은 grid
+점</strong> 의 결과 (동일 recall 이면 QPS 가 더 큰 쪽 선택).</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Retriever</th>
+<th>Device</th>
+<th>Recall@10 (vs exact)</th>
+<th>Recall@10 (vs GT)</th>
+<th>NDCG@10</th>
+<th>QPS (max c)</th>
+<th>P99 ms</th>
+<th>$/1M</th>
+<th>W/QPS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>amazon_beauty</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>0.9993</td>
+<td>0.0077</td>
+<td>0.0048</td>
+<td>13,839</td>
+<td>12.38</td>
+<td>$0.0984</td>
+<td>0.00</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>cuvs_ivfpq</td>
+<td>cuda</td>
+<td>0.5477</td>
+<td>0.0076</td>
+<td>0.0050</td>
+<td>11,599</td>
+<td>6.97</td>
+<td>$0.1173</td>
+<td>0.00</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>0.9973</td>
+<td>0.0077</td>
+<td>0.0048</td>
+<td>38,711</td>
+<td>1.15</td>
+<td>$0.0102</td>
+<td>0.00</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>scann_cpu</td>
+<td>cpu</td>
+<td>0.9874</td>
+<td>0.0077</td>
+<td>0.0048</td>
+<td>5,196</td>
+<td>0.51</td>
+<td>$0.0759</td>
+<td>0.02</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>1.0000</td>
+<td>0.0195</td>
+<td>0.1161</td>
+<td>4,469</td>
+<td>77.15</td>
+<td>$0.3046</td>
+<td>0.02</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>cuvs_ivfpq</td>
+<td>cuda</td>
+<td>0.4649</td>
+<td>0.0231</td>
+<td>0.1304</td>
+<td>1,055</td>
+<td>61.03</td>
+<td>$0.9695</td>
+<td>0.05</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>1.0000</td>
+<td>0.0195</td>
+<td>0.1161</td>
+<td>189,739</td>
+<td>0.18</td>
+<td>$0.0021</td>
+<td>0.00</td>
+</tr>
+</tbody>
+</table>
+<h2 id="iso-recall-speedup-recall10-vs-exact-095">Iso-recall speedup (Recall@10 vs exact ≥ 0.95)</h2>
+<p>각 dataset 안에서 가장 느린 retriever 를 1× 로 두고, 다른 retriever 의 QPS 배수.</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Retriever</th>
+<th>Device</th>
+<th>QPS</th>
+<th>Speedup vs slowest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>amazon_beauty</td>
+<td>scann_cpu</td>
+<td>cpu</td>
+<td>5,196</td>
+<td>1.00×</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>14,909</td>
+<td>2.87×</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>102,126</td>
+<td>19.65×</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>4,469</td>
+<td>1.00×</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>332,176</td>
+<td>74.33×</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">시각화</h2>
+<h3 id="recall-qps-pareto">Recall-QPS Pareto 곡선</h3>
+<p><img alt="" src="figures/recall_vs_qps.png"></p>
+<p>곡선의 점선은 retriever × dataset 별 Pareto frontier. 빨간 점선은
+iso-recall = 0.95 비교 기준선 (<code>reports/01_metric_design.md §4.1</code>).</p>
+<h3 id="single-stream-latency">Single-stream latency 분포</h3>
+<p><img alt="" src="figures/latency_cdf.png"></p>
+<h3 id="cost-iso-recall-090">Cost @ iso-recall (≥0.90)</h3>
+<p><img alt="" src="figures/cost_bar.png"></p>
+<h3 id="throughput-vs-concurrency">Throughput vs concurrency</h3>
+<p><img alt="" src="figures/concurrency_qps.png"></p>
+<h3 id="throughput-per-watt-iso-recall-090">Throughput per Watt @ iso-recall (≥0.90)</h3>
+<p><img alt="" src="figures/throughput_per_watt.png"></p>
+<p>전력 측정이 가능한 경우에만 표시. CPU 만 사용한 retriever 는 보통
+NVML 샘플링 결과가 0 이라 제외된다.</p>
+<h2 id="_3">데이터 소스</h2>
+<ul>
+<li>메트릭: <code>results/&lt;exp_id&gt;/metrics.json</code></li>
+<li>집계 CSV: <code>results/&lt;exp_id&gt;/aggregate.csv</code></li>
+<li>하드웨어: <code>results/&lt;exp_id&gt;/hardware.json</code></li>
+<li>비용 모델: <code>configs/cost_model.yaml</code></li>
+</ul>
+<h2 id="_4">주의 (현재 단계 한계)</h2>
+<p>본 자동 생성 결과는 ML-25M sanity check 단계의 측정이다. 본 표의 절대
+값보다 <strong>retriever × hardware 간 상대 비교</strong> 에 의미를 둔다. 그래도
+<code>Recall@10 vs ground truth</code> 가 낮다면 모델 학습이 부족한 신호이며,
+<code>Recall@10 vs exact</code> 는 ANN 알고리즘 자체의 정확도라 모델 품질과 독립.</p>
+</body>
+</html>

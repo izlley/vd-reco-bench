@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reco_bench · reports</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+</head><body>
+<h1>reco_bench — reports (HTML)</h1>
+<p>Vector-DB 가속기(VDPU)용 Two-tower 추천 검색 벤치마크 문서.
+원본은 <code>reports/*.md</code>, 본 HTML 은 <code>scripts/md_to_html.py</code> 로 생성.</p>
+<h2>핵심 문서</h2>
+<ul>
+      <li><a href="00_overview.html">00 · 개요 (Overview)</a></li>
+      <li><a href="01_metric_design.html">01 · 메트릭 설계</a></li>
+      <li><a href="02_dataset_selection.html">02 · 데이터셋 선정</a></li>
+      <li><a href="03_baseline_methodology.html">03 · Baseline 방법론</a></li>
+      <li><a href="04_vdpu_value_proposition.html">04 · VDPU 가치 명제</a></li>
+      <li><a href="05_reproducibility.html">05 · 재현성</a></li>
+      <li><a href="06_phase1_findings.html">06 · Phase 1 발견</a></li>
+      <li><a href="baseline_results.html">baseline_results (자동 생성 결과)</a></li>
+</ul>
+<h2>진행 history</h2>
+<ul>
+      <li><a href="history/0000_index.html">0000_index</a></li>
+      <li><a href="history/2026-05-20_initial-planning.html">2026-05-20_initial-planning</a></li>
+      <li><a href="history/2026-05-20_phase0-docs-complete.html">2026-05-20_phase0-docs-complete</a></li>
+      <li><a href="history/2026-05-20_repo-scaffold.html">2026-05-20_repo-scaffold</a></li>
+      <li><a href="history/2026-06-04_confluence-export.html">2026-06-04_confluence-export</a></li>
+      <li><a href="history/2026-06-04_env-setup.html">2026-06-04_env-setup</a></li>
+      <li><a href="history/2026-06-04_final-eval.html">2026-06-04_final-eval</a></li>
+      <li><a href="history/2026-06-04_ml25m-preprocess.html">2026-06-04_ml25m-preprocess</a></li>
+      <li><a href="history/2026-06-04_phase1-complete.html">2026-06-04_phase1-complete</a></li>
+      <li><a href="history/2026-06-04_phase1_full-pipeline.html">2026-06-04_phase1_full-pipeline</a></li>
+      <li><a href="history/2026-06-04_readme-references.html">2026-06-04_readme-references</a></li>
+      <li><a href="history/2026-06-04_user-requirements-clarified.html">2026-06-04_user-requirements-clarified</a></li>
+</ul>
+<h2>planning</h2>
+<ul>
+      <li><a href="planning/2026-05-20_phase0-plan.html">2026-05-20_phase0-plan</a></li>
+      <li><a href="planning/README.html">README</a></li>
+</ul>
+</body></html>

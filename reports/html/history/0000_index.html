@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0000_index · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+
+<h1 id="reco_bench-history">reco_bench — 진행 history 인덱스</h1>
+<p>이 파일은 <code>reports/history/</code> 의 모든 entry 를 시간순으로 나열한다. 각 entry
+는 벤치마크 개발의 한 discrete 한 단계 — 새 문서 작성, 코드 마일스톤,
+설계 방향 전환, 명시적 의사결정 — 를 기록한다.</p>
+<p>목표는 향후 reader (공개 배포 후의 오픈소스 사용자 포함) 가 벤치마크가
+<strong>왜 지금의 모습인지</strong> 를 재구성할 수 있도록 하는 것이다. 단순히 무엇을
+하는지가 아니다.</p>
+<h2 id="_1">규칙</h2>
+<ul>
+<li>의미 있는 단계마다 entry 하나. 입자도 (granularity) 기준: 컨퍼런스 논문의
+  "implementation" 섹션에서 한 단락 분량이 될 만하면 entry 가치가 있다.</li>
+<li>파일명: <code>YYYY-MM-DD_&lt;short-slug&gt;.md</code>. 같은 날짜에 여러 entry 가능;
+  순서는 slug 알파벳 순.</li>
+<li>Frontmatter 필드: <code>date</code>, <code>phase</code> (0, 1, 2, ...), <code>topic</code>, <code>status</code>
+  (<code>completed</code> / <code>in_progress</code> / <code>abandoned</code>).</li>
+<li>각 entry 는 네 섹션: <strong>What changed</strong>, <strong>Why</strong>, <strong>Validation</strong>,
+  <strong>Open questions / next</strong>.</li>
+<li>다른 entry 참조는 상대 경로로, 예: <code>[init](2026-05-20_initial-planning.md)</code>.</li>
+</ul>
+<h2 id="entries">Entries</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>Phase</th>
+<th>Slug</th>
+<th>상태</th>
+<th>한 줄 요약</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-20</td>
+<td>0</td>
+<td><a href="2026-05-20_initial-planning.html">initial-planning</a></td>
+<td>completed</td>
+<td>프로젝트 킥오프: Phase 0+1 을 GPU baseline 만으로 한정 (VDPU 미사용), MovieLens-25M + Amazon Reviews 2023 채택, <code>Retriever</code> 추상 클래스를 VDPU 플러그인 seam 으로 정의.</td>
+</tr>
+<tr>
+<td>2026-05-20</td>
+<td>0</td>
+<td><a href="2026-05-20_repo-scaffold.html">repo-scaffold</a></td>
+<td>completed</td>
+<td>디렉토리 골격, 공개용 foundation 파일 (LICENSE/CITATION/README/.gitignore), Phase 0 문서 scaffold 생성.</td>
+</tr>
+<tr>
+<td>2026-05-20</td>
+<td>0</td>
+<td><a href="2026-05-20_phase0-docs-complete.html">phase0-docs-complete</a></td>
+<td>completed</td>
+<td>Phase 0 의 reports 문서 6종 + configs YAML + <code>Retriever</code>/<code>metrics</code> 코드 seam + 단위 테스트 스켈레톤 완성. Phase 1 코드 구현 진입 가능 상태.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_env-setup.html">env-setup</a></td>
+<td>completed</td>
+<td>Phase 1 시작. 4× H100 / CUDA 12.8 / PyTorch 2.9 / cuVS 26.04 / faiss-cpu 1.14 환경 검증. <strong>GPU retriever 를 FAISS-GPU 에서 cuVS IVF-PQ 로 변경</strong> (cublas ABI 충돌 회피). <code>utils/{seed,io,gpu_info}</code> 추가.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_ml25m-preprocess.html">ml25m-preprocess</a></td>
+<td>completed</td>
+<td>Step 2 부분. ML-25M 다운로드 + 전처리 파이프라인 (<code>data/{base,preprocessing,ml25m,pipeline}.py</code>) 작성 + 실 데이터 처리 완료. 14M train / 779k val / 779k test, 24k items, 162k users.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_user-requirements-clarified.html">user-requirements-clarified</a></td>
+<td>completed</td>
+<td>사용자가 vector DB 비교 + 시각화 + 단일 명령 + 속도 강조의 4가지 요구사항을 명시. retriever 카테고리 A/B/C 분리, <code>reports/00_overview.md</code> 와 <code>04_vdpu_value_proposition.md</code> 갱신.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_phase1-full-pipeline.html">phase1-full-pipeline</a></td>
+<td>completed</td>
+<td>6 retriever (ANN 라이브러리 4 + Vector DB 2) end-to-end. Milvus Lite, Qdrant Local, ScaNN 추가. <code>speedup ratio</code> metric, QUICKSTART.md 추가. v1 hyperparameter 실패 (logQ off → 더 떨어짐, v0 로 회귀).</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_final-eval.html">final-eval</a></td>
+<td>completed</td>
+<td>Phase 1 평가 완료. milvus/qdrant API 호환성 디버그, 측정 시간 최적화 (4-5배 단축), GPU keepalive 적용. 자동 리포트 5종 그래프 + speedup table 생성.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_phase1-complete.html">phase1-complete</a></td>
+<td>completed</td>
+<td><strong>Phase 1 종료.</strong> ML-25M + Amazon Beauty 두 dataset × 4-6 retriever 측정 완료. ML-25M 에서 FAISS-CPU HNSW × 74.33 vs cuVS CAGRA, Amazon Beauty 에서 ×19.65. baseline_results.md 자동 생성 (메인 표 + speedup + 5종 그래프).</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_readme-references.html">readme-references</a></td>
+<td>completed</td>
+<td>README 에 "참고한 오픈 벤치마크" 섹션 추가 (ann-benchmarks, MLPerf DLRM, VectorDBBench, recommenders, RecBole, Google Two-tower + 데이터셋). 각 항목에 링크 + 반영 위치 명시.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_confluence-export.html">confluence-export</a></td>
+<td>completed</td>
+<td>reports 문서 21개를 Confluence Wiki Markup 으로 변환 (<code>scripts/md_to_confluence.py</code> → <code>reports/confluence/</code>). 원본 .md 는 유지.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

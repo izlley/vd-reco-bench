@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04_vdpu_value_proposition · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="00_overview.html">↑ 개요</a> · <a href="history/0000_index.html">history</a></div>
+
+<h1 id="04-vdpu-value-proposition-narrative">04 · VDPU 가치 명제 (Value Proposition) — 영업 narrative 의 수식화</h1>
+<blockquote>
+<p>이 문서는 디노티시아 VDPU 의 "CPU 대비 10×, GPU 대비 6~7× 가성비"
+라는 공개 주장을 <strong>iso-recall 비교 프레임 안에서 수치로 검증 가능한
+형태로 다시 쓴 것</strong> 이다. Phase 0 에서는 schema 와 수식만 정의하고,
+실측 칼럼은 Phase 2 에서 채운다.</p>
+<p>본 문서는 <strong>공개 배포</strong> 를 전제로 작성되므로 비공개 가격 협상,
+미공개 고객사, 미공개 ASIC 사양은 포함하지 않는다. 공개 출처
+(hellot.net CDO 인터뷰 등) 만 인용한다.</p>
+</blockquote>
+<hr>
+<h2 id="1">1. 핵심 헤드라인 — 한 줄</h2>
+<blockquote>
+<p><strong>추천 시스템의 ANN 검색 단계에서, Recall@10 = 0.95 라는 동일한 정확도
+를 달성하는 데 드는 비용을 GPU(H100) baseline 과 VDPU 가 각각 얼마인지
+비교하여, $/1M queries 의 비율을 보고한다.</strong></p>
+</blockquote>
+<p>이 비율이 영업이 이야기하는 "<strong>6~7×</strong>" 의 수학적 형태이다.</p>
+<hr>
+<h2 id="2-narrative">2. 영업 narrative 를 수식으로 다시 쓰기</h2>
+<h3 id="21-hellotnet-2025-03-xx">2.1 원래의 주장 (hellot.net, 2025-03-XX 인터뷰)</h3>
+<blockquote>
+<p>"VDPU 는 CPU 대비 최대 10배, GPU 대비 6~7배의 가성비를 확보했다."</p>
+</blockquote>
+<p>이 문장은 그 자체로는 검증 불가능하다. 다음을 명시해야 한다:</p>
+<ol>
+<li><strong>무엇의</strong> 가성비인가? — 처리량 단위 비용 ($/QPS) 인가, 단위 전력 당
+   처리량 (QPS/W) 인가, 전체 TCO 인가?</li>
+<li><strong>어떤 작업</strong> 에서? — 임의의 벡터 dot product 인가, 추천 ANN 인가,
+   RAG retrieval 인가, 벡터 DB 의 일부 연산인가?</li>
+<li><strong>어떤 정확도</strong> 에서? — recall 을 어디로 맞춰 놓고 비교하는가?</li>
+<li><strong>어떤 baseline GPU</strong> 인가? — A100, H100, H200, B100?</li>
+</ol>
+<p>본 벤치마크는 이 네 가지를 다음과 같이 고정한다:</p>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>본 벤치마크의 정의</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>비용 단위</td>
+<td><code>$/1M queries</code> (cloud SKU 시간당 가격 기준)</td>
+</tr>
+<tr>
+<td>작업</td>
+<td>Two-tower 추천 검색의 ANN top-10 / top-100</td>
+</tr>
+<tr>
+<td>정확도</td>
+<td>Recall@K vs exact \(\geq\) 0.95 (primary), 0.90 (secondary)</td>
+</tr>
+<tr>
+<td>Baseline GPU</td>
+<td>H100 SXM5 80G + (FAISS-GPU IVF-PQ, cuVS CAGRA) 중 더 저렴한 쪽</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22">2.2 핵심 수식 (재게재)</h3>
+<p><code>01_metric_design.md §4.1</code> 의 정의:</p>
+<p>\[\text{IsoRecallCostRatio}_{R=r}
+= \frac{\$/\text{QPS}\,|\, \text{baseline at Recall@K vs exact} = r}
+       {\$/\text{QPS}\,|\, \text{VDPU at Recall@K vs exact} = r}\]</p>
+<p>목표:
+- \(r = 0.95\): <strong>목표 6~7×</strong>.
+- \(r = 0.90\): <strong>참고 측정</strong> (VDPU 가 낮은 recall 에서만 빠르다면 영업에
+  치명적).</p>
+<h3 id="23">2.3 보조 수식</h3>
+<p>전력 효율:
+\[\text{IsoRecallEnergyRatio}_{R=r}
+= \frac{(\bar{P}_{\text{net}}/\text{QPS})_{\text{baseline}}}
+       {(\bar{P}_{\text{net}}/\text{QPS})_{\text{VDPU}}}\]</p>
+<p>데이터 센터 PUE 가 동일하다고 가정하면 이는 전력 비용 비율과 같다.</p>
+<p>빌드 비용 (일회성):
+\[\text{IndexBuildRatio} = \frac{T_{\text{build, baseline}}}{T_{\text{build, VDPU}}}\]</p>
+<p>VDPU 가 build 마저 가속한다면 추가 영업 포인트.</p>
+<hr>
+<h2 id="3-tco-3-amortize">3. TCO 모델 (3년 amortize)</h2>
+<p>영업 자료에서 자주 요구되는 "연간 절감액" 을 계산하기 위한 모델.</p>
+<h3 id="31">3.1 가정</h3>
+<table>
+<thead>
+<tr>
+<th>변수</th>
+<th>기본값</th>
+<th>출처/근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workload</td>
+<td>1B queries/day</td>
+<td>중대형 쇼핑몰 추천 호출 추정 (top 페이지 + 검색 + 상세 페이지)</td>
+</tr>
+<tr>
+<td>가동률</td>
+<td>70%</td>
+<td>peak/off-peak 평균</td>
+</tr>
+<tr>
+<td>운영 기간</td>
+<td>3년</td>
+<td>일반 amortize 기간</td>
+</tr>
+<tr>
+<td>전력 단가</td>
+<td>$0.10 /kWh</td>
+<td>한국 산업용 평균 (KEPCO 공개 자료)</td>
+</tr>
+<tr>
+<td>PUE</td>
+<td>1.4</td>
+<td>tier-3 IDC 평균</td>
+</tr>
+<tr>
+<td>인건/운영 OpEx</td>
+<td>TCO 의 15%</td>
+<td>업계 통상 비율 (소거 가능)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-tco">3.2 TCO 식</h3>
+<p>연간 비용 (한 가속기 종류 기준):</p>
+<p>\[\text{TCO}_{\text{annual}} = \frac{C_{\text{capex}}}{3}
++ \bar{P}_{\text{net}} \cdot \text{hours} \cdot \text{PUE} \cdot p_{\text{kWh}}
++ \alpha \cdot (\text{above})\]</p>
+<ul>
+<li>\(C_{\text{capex}}\): 하드웨어 구매가 (cloud 라면 시간당 가격을 amortize
+  한 등가).</li>
+<li>\(\bar{P}_{\text{net}}\): 평균 net 전력 (W) — <code>01_metric_design.md §3.4</code>.</li>
+<li>\(\text{hours}\): 가동률 보정한 연간 가동 시간.</li>
+<li>\(\alpha = 0.15\): 운영 OpEx 비율.</li>
+</ul>
+<h3 id="33">3.3 필요 가속기 수</h3>
+<p>\[N_{\text{HW}} = \left\lceil \frac{\text{queries/day} / 86400}{\text{QPS}_{\text{single}} \cdot \text{utilization}} \right\rceil\]</p>
+<p>VDPU 가 6× 더 빠르면 \(N_{\text{HW}}\) 도 6× 줄어 CapEx 가 6× 절감되고,
+전력도 비례 절감.</p>
+<h3 id="34-baseline-tco-vdpu-tco">3.4 절감액 = (baseline TCO – VDPU TCO)</h3>
+<p>연간 절감액 × 3년 = 영업 자료의 "3년간 X억 절감".</p>
+<hr>
+<h2 id="4-sensitivity-phase-2">4. Sensitivity 분석 (Phase 2 산출)</h2>
+<p>영업 자료의 신뢰성은 <strong>외부 변수에 따라 6~7× 가 어떻게 변하는가</strong> 를
+보여줄 때 비로소 생긴다. 다음 sweep 을 수행한다:</p>
+<h3 id="41-corpus-size">4.1 Corpus size 의 영향</h3>
+<table>
+<thead>
+<tr>
+<th>Item 수</th>
+<th>예상 영향</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>60k (MovieLens)</td>
+<td>VDPU 우위 작음 (GPU 도 빠르게 처리)</td>
+</tr>
+<tr>
+<td>1M (Amazon-Books)</td>
+<td>VDPU 우위 명확</td>
+</tr>
+<tr>
+<td>10M (synthetic, 추후 Phase 2)</td>
+<td>VDPU 우위 극대화</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-embedding-dim">4.2 Embedding dim 의 영향</h3>
+<p>dim ∈ {64, 128, 256, 512}.
+VDPU 의 connectivity 와 SIMD 폭이 어느 dim 에서 최적인지 측정.</p>
+<h3 id="43-recall-target">4.3 Recall target 의 영향</h3>
+<p>\(r \in [0.80, 0.99]\) 의 sweep.
+이론적으로 모든 ANN 가속기는 r → 1 에 가까워질수록 brute-force 에
+수렴하므로 가속비가 떨어진다. 본 벤치마크는 그 떨어지는 지점이 어디인지
+시각화한다.</p>
+<h3 id="44-concurrency">4.4 Concurrency 의 영향</h3>
+<p>concurrency ∈ {1, 4, 16, 64}.
+VDPU 의 batch sweet-spot 이 GPU 와 다르다면 sweep 그래프에 명확히 보여
+야 한다.</p>
+<h3 id="45">4.5 데이터 분포의 영향</h3>
+<p>ML-25M 의 dense item embedding 과 Amazon-Reviews 의 long-tail item
+distribution 은 ANN 가속기에 다른 부하를 준다. 두 데이터셋에서의
+가속비 차이를 별도 보고.</p>
+<hr>
+<h2 id="5-schema-phase-2">5. 결과 보고 schema (Phase 2 채움)</h2>
+<h3 id="51">5.1 헤드라인 표</h3>
+<pre><code class="language-markdown">## Iso-recall cost ratio @ Recall@10 vs exact = 0.95
+
+| Dataset       | Items | Baseline (GPU) | VDPU $/1M | Ratio |
+|---------------|-------|----------------|-----------|-------|
+| ML-25M        | 62k   | TBD            | TBD       | TBD ×  |
+| Amazon-Beauty | 80k   | TBD            | TBD       | TBD ×  |
+| Amazon-Books  | 800k  | TBD            | TBD       | TBD ×  |
+| Amazon-Elec.  | 200k  | TBD            | TBD       | TBD ×  |
+</code></pre>
+<h3 id="52-sensitivity">5.2 Sensitivity 그래프</h3>
+<ul>
+<li><code>reports/figures/cost_ratio_vs_corpus_size.png</code></li>
+<li><code>reports/figures/cost_ratio_vs_recall.png</code></li>
+<li><code>reports/figures/cost_ratio_vs_dim.png</code></li>
+<li><code>reports/figures/cost_ratio_vs_concurrency.png</code></li>
+</ul>
+<p>각 그래프의 x 축 위에 baseline 의 가격 스냅샷 날짜 명시.</p>
+<h3 id="53-tco">5.3 TCO 시뮬레이션 표</h3>
+<pre><code class="language-markdown">## 3년 TCO 비교 (1B queries/day, PUE 1.4, 전력 $0.10/kWh)
+
+| 구성 | 필요 HW 수 | CapEx | 전력 OpEx (3yr) | 운영 OpEx (3yr) | Total |
+|------|-----------|-------|----------------|-----------------|-------|
+| H100 baseline | N        | $X    | $Y             | $Z              | $T₁   |
+| VDPU          | N/6.5    | $X'   | $Y'            | $Z'             | $T₂   |
+| 절감          |           |       |                |                  | \(T₁-\)T₂ |
+</code></pre>
+<hr>
+<h2 id="6-anti-narrative">6. Anti-narrative (반대 입장 미리 대응)</h2>
+<p>영업 narrative 가 강하려면 reviewer 의 의심을 먼저 대응해야 한다.</p>
+<h3 id="61-vdpu-recall">6.1 "VDPU 가 빠른 건 recall 이 낮아서 아닌가?"</h3>
+<p>→ 본 벤치마크는 <strong>iso-recall</strong> 비교. 같은 recall 에서 측정.</p>
+<h3 id="62-cherry-picked-gpu-baseline">6.2 "Cherry-picked GPU baseline 아닌가?"</h3>
+<p>→ baseline 은 <strong>현재 시점에서 가장 저렴한 GPU 구성</strong> 이며 sweep 결과
+   중 winner 를 사용. 즉 VDPU 에게 가장 불리한 baseline.</p>
+<h3 id="63-vdpu">6.3 "데이터셋이 VDPU 에 유리하게 골라진 것 아닌가?"</h3>
+<p>→ MovieLens 와 Amazon Reviews 는 추천 시스템 학계의 표준이며 디노티시아
+   가 제어하지 않는다. raw 데이터는 GroupLens, McAuley UCSD 가 배포.</p>
+<h3 id="64-cloud">6.4 "Cloud 가격이 변하면 의미 없는 것 아닌가?"</h3>
+<p>→ 가격 스냅샷 날짜를 명시하고, <code>configs/cost_model.yaml</code> 을 갱신하면
+   누구나 재계산 가능. 결과의 절대값보다 비율이 영업 포인트.</p>
+<h3 id="65-power-noise">6.5 "Power 측정이 noise 가 큰데?"</h3>
+<p>→ 측정 방법론 (샘플 레이트, 적분 윈도우, baseline idle) 을 두 가속기에
+   동일하게 적용. 그 차이가 6× 이상이 되려면 측정 오차로 설명 불가능.</p>
+<h3 id="66-vdpu-milvusqdrantpinecone">6.6 "VDPU 가 빠르지만 운영 도구 (Milvus/Qdrant/Pinecone) 와 통합 안</h3>
+<p>되면 의미 없는 것 아닌가?"</p>
+<p>→ 본 벤치마크는 가속기 단위 평가. 시스템 통합은 별도 작업으로 추적
+   (Phase 2.5: Seahorse 와의 통합 데모).</p>
+<hr>
+<h2 id="7">7. 헤드라인 차트 (목업)</h2>
+<p>Phase 2 에서 자동 생성될 차트의 모양은 다음과 같다.</p>
+<h3 id="71-recall-qps-pareto">7.1 Recall-QPS Pareto (메인 차트)</h3>
+<pre><code>       Recall@10 vs exact
+            ▲
+       1.0 ─┤
+            │       ╱──────────── VDPU 목표 곡선 (예측)
+            │      ╱
+            │     ╱      ●●●●●● cuVS CAGRA H100
+            │    ●●●●●●●●
+       0.95 ╾────────────────────────  ← iso-recall 기준선 (0.95)
+            │ ●●●          ●●●●●● FAISS-GPU IVF-PQ H100
+            │
+       0.90 ─┤●●          ●●●●●● FAISS-CPU HNSW EPYC
+            │           ●●●●●● ScaNN CPU
+            │
+            └───────────────────────▶ QPS (log scale)
+                  1k   10k   100k   1M
+</code></pre>
+<p>iso-recall 기준선 (0.95) 과 각 곡선이 만나는 점의 QPS 가 비교의 핵심.</p>
+<h3 id="72">7.2 비용 막대 그래프</h3>
+<pre><code>   $/1M queries @ Recall@10=0.95
+    ▲
+    │ ████ FAISS-CPU HNSW        $0.075
+    │ ███  ScaNN CPU             $0.063
+    │ ██   FAISS-GPU IVF-PQ      $0.094
+    │ █    cuVS CAGRA H100       $0.055  ← baseline 의 winner
+    │ ▓    VDPU (target)         $0.008  ← 6.5× 저렴
+    └─────────────────────────────────▶
+</code></pre>
+<p>(위 숫자는 schema 예시.)</p>
+<hr>
+<h2 id="8">8. 책임 분리</h2>
+<table>
+<thead>
+<tr>
+<th>활동</th>
+<th>본 벤치마크의 책임</th>
+<th>영업/마케팅의 책임</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>측정 정확성</td>
+<td>O</td>
+<td>–</td>
+</tr>
+<tr>
+<td>측정 방법론의 공개</td>
+<td>O</td>
+<td>–</td>
+</tr>
+<tr>
+<td>측정 결과의 수치</td>
+<td>O</td>
+<td>–</td>
+</tr>
+<tr>
+<td>결과를 영업 자료로 가공</td>
+<td>–</td>
+<td>O</td>
+</tr>
+<tr>
+<td>미공개 가격으로 TCO 갱신</td>
+<td>–</td>
+<td>O</td>
+</tr>
+<tr>
+<td>고객사별 customization</td>
+<td>–</td>
+<td>O</td>
+</tr>
+</tbody>
+</table>
+<p>본 벤치마크의 결과는 <strong>공개 가능한 가격과 공개 데이터셋으로 재현 가능한
+숫자</strong> 만 다룬다. 그 외의 가공은 본 저장소 바깥에서.</p>
+<hr>
+<h2 id="9-open-questions">9. Open questions</h2>
+<ul>
+<li>VDPU FPGA 의 \(C_{\text{hourly}}\) 를 산출할 방법론 정의 필요
+  (양산 ASIC 가격이 미공개이므로, FPGA prototype 의 cloud-equivalent
+  단가를 합리적으로 추정해야).</li>
+<li>1B queries/day 가정의 출처를 더 단단히 (publicly verifiable e-commerce
+  query volume 자료).</li>
+<li>"VDPU 가 GPU + reranker 까지 가속" 같은 확장 시나리오를 별도 도큐로
+  분리할 가치 있는지.</li>
+</ul>
+<hr>
+<h2 id="10">10. 변경 이력</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-20</td>
+<td>초안 작성</td>
+<td>Phase 0 초기 설계</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

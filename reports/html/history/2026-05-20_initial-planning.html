@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-05-20_initial-planning · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-05-20 &nbsp;·&nbsp; <b>phase</b>: 0 &nbsp;·&nbsp; <b>topic</b>: planning &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="_1">초기 기획</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><code>reports/planning/2026-05-20_phase0-plan.md</code> 를 Phase 0 (문서) 와 Phase 1
+  (GPU baseline 코드) 의 source-of-truth 설계 문서로 작성.</li>
+<li>Phase 0+1 의 네 모서리 (scope) 확정:
+  1. <strong>하드웨어</strong>: GPU 전용 (VDPU 실리콘/시뮬레이터 아직 없음).
+  2. <strong>비교 baseline</strong>: FAISS-GPU (IVF-PQ, HNSW는 CPU), cuVS CAGRA,
+     ScaNN (CPU, stretch goal).
+  3. <strong>데이터셋</strong>: MovieLens-25M (sanity) + Amazon Reviews 2023 Beauty /
+     Books / Electronics (카테고리당 약 100K–1M items, medium 스케일).
+  4. <strong>산출물</strong>: <code>reports/</code> 의 설계 문서 + 동작하는 baseline 스크립트.</li>
+<li><strong>VDPU 플러그인 seam</strong> 확립: <code>Retriever</code> 추상 클래스의 단일 contract 는
+  <code>build(item_emb) → search(queries, k)</code> 뿐. VDPU 하드웨어가 도착하면
+  통합은 <code>reco_bench/retrievers/vdpu.py</code> 단일 파일 + YAML 한 개 + cost
+  model 한 행 추가만으로 끝난다.</li>
+<li><strong><code>reports/history/</code></strong> 를 시간순 설계 진화의 정식 저장 위치로 지정하고,
+  <strong><code>reports/planning/</code></strong> 를 그 의사결정을 이끈 제안 문서의 저장소로
+  분리.</li>
+</ul>
+<h2 id="why">Why</h2>
+<ul>
+<li><strong>GPU 전용 scope</strong> 는 사용자의 명시적 지시이다. VDPU 실리콘이 도착하기
+  전에 baseline 을 먼저 만들어 두는 것이 올바른 risk 순서이다. baseline
+  쪽이 더 어렵고 시간이 많이 드는 부분 (모델 학습, ANN 파라미터 sweep,
+  latency profiling 정확성) 이며, 이게 갖춰지면 VDPU 통합은 기계적 작업
+  이 된다.</li>
+<li><strong>MovieLens-25M 은 sanity, Amazon Reviews 2023 은 실측</strong> 의 조합은
+  산업급 데이터셋 (Taobao UB, KuaiRec) 대신 선택되었다. 벤치마크의
+  첫 임무는 가장 큰 corpus 를 다루는 것이 아니라 <strong>방법론을 정착시키는
+  것</strong> 이기 때문이다. 대규모 corpus 는 iso-recall 비교 프레임이 정착된
+  후의 Phase 2 sweep 차원이다.</li>
+<li><strong><code>Retriever</code> 만이 유일한 플러그인 seam</strong> 으로 둔 것은 비용 비교
+  프레임을 하드웨어 종속성 없이 유지하기 위함이다. 파이프라인과
+  <code>Evaluator</code> 는 인덱스가 GPU 위에 있든 VDPU 위에 있든 알 필요가 없으며,
+  단지 query 벡터의 배치를 넘기고 왕복 시간만 측정한다.</li>
+<li><strong><code>reports/history/</code></strong> 는 사용자의 후속 요구사항 (공개 시 작업 history
+  보존) 을 해결한다. 이게 없으면 오픈소스 reader 는 최종 상태만 볼 수
+  있고, 그 상태에 이르게 한 추론 과정을 볼 수 없다.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>계획된 방법론을 세 가지 공개 컨벤션과 교차 검증:</li>
+<li><strong>ann-benchmarks</strong> — Recall-QPS Pareto 곡선 포맷.</li>
+<li><strong>MLPerf Inference recommendation (DLRM v2/v3)</strong> —
+    single-stream + max-throughput latency profiling 패턴.</li>
+<li><strong>Microsoft <code>recommenders</code> ML-25M 노트북</strong> — 학습된 Two-tower 가
+    sanity check 받을 Recall@10 reference band.</li>
+<li>VDPU 의 공개 주장 (CPU 대비 10×, GPU 대비 6~7×) 의 출처는 hellot.net
+  의 디노티시아 CDO 인터뷰 (2025년 3월). 내부 비공개 수치는 사용하지
+  않는다. 벤치마크는 공개된 주장만으로 자기 자신을 입증 또는 반증해야
+  한다.</li>
+<li>주변 트리 (<code>/workspace/izlley/sllm/</code>) 에 추천 / ANN 관련 기존 코드는
+  없음을 확인. <code>reco_bench</code> 는 greenfield 이며 따라야 할 legacy 패턴이
+  없다.</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li><strong>GPU 모델</strong>: baseline 을 어느 SKU 에서 돌릴 것인가? cost-model 의
+  <code>$/hr</code> 칸과 에너지 측정 방법론 (H100 SXM5 vs PCIe vs H200 의 전력
+  envelope 차이) 이 여기에 결정된다.
+  → Phase 1 진입 시 결정, <code>reports/05_reproducibility.md</code> 에 기록.</li>
+<li><strong>cuVS / RAPIDS pod 설치 경로</strong>: cuVS 는 특정 CUDA/RAPIDS 조합을
+  요구한다. pod 의 CUDA 버전과 RAPIDS 24.10 의 floor 와의 호환성이
+  필요하다. 호환되지 않으면 0.5~1일 risk.</li>
+<li><strong>ScaNN 포함 여부</strong>: CPU 전용 + AVX2 gating. 설치가 까다로워지면
+  Phase 2 로 미룰 수 있다. 핵심 비교 대상이 아니다.</li>
+<li><strong>History entry 규율</strong>: "의미 있는 단계마다 entry" 라는 규칙은 commit
+  과 함께 entry 가 묶여야만 동작한다. git init 후 pre-commit hook 또는
+  PR 템플릿으로 강제하는 방안 필요.</li>
+</ul>
+</body>
+</html>

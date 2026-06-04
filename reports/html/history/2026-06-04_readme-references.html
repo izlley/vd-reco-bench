@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_readme-references · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 1 &nbsp;·&nbsp; <b>topic</b>: readme-references &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="readme">README 에 "참고한 오픈 벤치마크" 섹션 추가</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li><code>README.md</code> 에 <strong>"참고한 오픈 벤치마크 / References"</strong> 섹션 신설.
+  세 분류로 정리:
+  1. <strong>측정 방법론</strong> — ann-benchmarks (Recall-QPS Pareto + exact
+     ground truth), MLPerf DLRM (single-stream + max-throughput),
+     VectorDBBench (multi-DB frame + cost).
+  2. <strong>추천 모델/데이터/학습</strong> — Microsoft recommenders (sanity +
+     전처리 정책), RecBole (split 정책), Google Two-tower (logQ loss).
+  3. <strong>데이터셋</strong> — MovieLens 25M, Amazon Reviews 2023.</li>
+<li>각 항목에 <strong>공개 repo/페이지 링크 + 우리 코드의 어느 부분에 반영
+  됐는지</strong> 를 명시.</li>
+<li>동기 설명 단락 (README 9~14줄) 의 이름 언급에도 링크 추가 (이전엔
+  ann-benchmarks 만 링크였음).</li>
+</ul>
+<h2 id="why">Why</h2>
+<ul>
+<li>사용자가 "reco_bench 가 어떤 오픈 벤치마크를 참고했는지" 질문 →
+  README 에 이름만 흩어져 있고 무엇을 빌려왔는지 정리된 섹션이 없음을
+  확인. 공개 배포를 전제로 하므로 출처 명시는 필수 (학술/오픈소스
+  예의 + 라이센스 안전).</li>
+<li>코드를 fork 한 게 아니라 <strong>방법론을 참조해 새로 구현</strong> 한 것임을
+  명시하여 오해 방지.</li>
+<li>Google Two-tower 논문의 arXiv 번호를 추측으로 넣었다가, 정확하지
+  않아 제거 (제목 + 저자 + 학회/연도만 유지). 부정확한 링크보다 검증
+  가능한 메타데이터가 낫다.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>README 의 References 섹션이 본문 동기 단락의 anchor 링크
+  (<code>#참고한-오픈-벤치마크--references</code>) 와 연결됨.</li>
+<li>각 링크가 실제 공개 repo 를 가리키는지 확인 (ann-benchmarks,
+  MLPerf inference, VectorDBBench, recommenders, RecBole, GroupLens,
+  Amazon Reviews 2023 모두 공개 URL).</li>
+<li>BibTeX 등 세부 인용은 <code>reports/02_dataset_selection.md</code> 와
+  <code>CITATION.cff</code> 에 이미 있으므로 중복 대신 cross-reference.</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li>공개 직전: Google Two-tower 논문의 정확한 DOI/링크를 한 번 더 확인해
+  References 에 보강.</li>
+<li><code>CITATION.cff</code> 에도 참고 벤치마크들을 <code>references:</code> 필드로 추가하면
+  citation tool 이 자동 인식 가능 (선택).</li>
+</ul>
+</body>
+</html>

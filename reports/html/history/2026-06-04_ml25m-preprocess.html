@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_ml25m-preprocess · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 1 &nbsp;·&nbsp; <b>topic</b>: ml25m-preprocess &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="step-2-ml-25m">Step 2 부분 완료: ML-25M 다운로드 + 전처리</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li>데이터 처리 모듈 작성:</li>
+<li><code>reco_bench/data/base.py</code> — <code>RecoDataset</code> 추상 + canonical schema.</li>
+<li><code>reco_bench/data/preprocessing.py</code> — implicit filter, k-core,
+    ID remap, temporal split, leak validation, per-user positives.</li>
+<li><code>reco_bench/data/ml25m.py</code> — MovieLens-25M zip 다운로드 + raw load.</li>
+<li><code>reco_bench/data/pipeline.py</code> — 전체 파이프라인 entry
+    (<code>python -m reco_bench.data.pipeline &lt;config.yaml&gt;</code>).</li>
+<li><code>scripts/00_download_data.sh</code> 가 위 entry 를 호출하는 실제 스크립트로
+  채워짐. (이전엔 placeholder 였음.)</li>
+<li>
+<p>ML-25M 실 다운로드 + 전처리 완료. 결과:
+  | 항목 | 값 |
+  |---|---|
+  | Raw interaction | 25,000,095 |
+  | Implicit (rating ≥ 3.5) 후 | 15,630,129 |
+  | K-core (k=5) 후 | 15,584,360 |
+  | Users (final) | 161,572 |
+  | Items (final) | 23,965 |
+  | Train / Val / Test | 14,025,924 / 779,218 / 779,218 |
+  | 소요 시간 | 약 58초 (다운로드 + 전처리) |
+  | Raw 디스크 | 1.1 GB |
+  | Processed 디스크 | 234 MB |</p>
+</li>
+<li>
+<p><code>configs/datasets/ml25m.yaml</code> 의 <code>stats_expected</code> 를 raw 기준에서 전
+  처리-후 floor 로 조정 (<code>num_items_min: 50000 → 20000</code>,
+  <code>num_interactions_min: 20M → 10M</code>).</p>
+</li>
+</ul>
+<h2 id="why">Why</h2>
+<ul>
+<li><strong>MovieLens-25M sha256 mismatch</strong>: YAML 의 placeholder 해시와 실제 zip
+  의 sha256 가 다른 것을 발견. mirror 가 시간에 따라 zip 내부 구조를
+  재패키징할 수 있고, 해시 lock 은 검증 의무가 강해 build 가 자주
+  깨질 수 있다. 현재는 mismatch 시 경고만 출력하고 계속 진행. raw
+  파일 (<code>ratings.csv</code>, <code>movies.csv</code>) 의 row count 가 reproducibility 의
+  진짜 floor 이다 (이건 1996~2019 의 ratings 가 fix 이므로 변하지 않음).</li>
+<li><strong>k-core 가 거의 줄이지 않음</strong>: implicit filter 후 15.63M → k-core
+  후 15.58M (-0.3%). ML-25M 사용자들이 이미 활발한 reviewer 이기 때문.
+  Amazon Reviews 에서는 더 많이 줄어들 것으로 예상.</li>
+<li><strong>ratio normalize</strong>: <code>temporal_split</code> 가 비율을 받을 때 합이 1.0 이
+  아니어도 자동 정규화하도록 구현 — YAML 에서 <code>[0.9, 0.05, 0.05]</code> 의
+  반올림 오차로 비율 합이 약간 빗나가도 안전.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>validate_split</code> 의 시간 누설 체크 통과: train_max &lt; val_min,
+  val_max &lt; test_min.</li>
+<li>per-user train positives <code>train_positives.npz</code> 가 정상 생성 (user-tower
+  의 recent-N input 으로 사용).</li>
+<li>11,000 사용자 (test) 중 ground_truth 빌드 동작 확인 (smoke 단계).</li>
+<li>합성 데이터 (200 rows) 로 모든 preprocessing helper 함수의 unit
+  smoke 통과.</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li><strong>Amazon Reviews 2023</strong>: huggingface_hub 의 <code>McAuley-Lab/Amazon-Reviews-2023</code>
+  에 대한 <code>reco_bench/data/amazon2023.py</code> 구현은 Step 7 (Two-tower 학습
+  이 안정화된 후) 로 미룸. ML-25M 으로 먼저 등뼈 검증.</li>
+<li><strong>GroupLens sha256 mismatch</strong>: 진짜 sha를 한 번 측정한 뒤 YAML 에
+  pinned 으로 박을지, 아니면 row count 만 정합성 기준으로 쓸지 결정
+  필요. 현재는 후자.</li>
+<li>다음 = Step 3 (Two-tower 모델 + 학습 파이프라인).</li>
+</ul>
+</body>
+</html>

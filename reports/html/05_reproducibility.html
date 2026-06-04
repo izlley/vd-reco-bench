@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05_reproducibility · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="00_overview.html">↑ 개요</a> · <a href="history/0000_index.html">history</a></div>
+
+<h1 id="05-reproducibility">05 · 재현성 (Reproducibility)</h1>
+<blockquote>
+<p>이 문서는 외부 reader 가 자신의 머신에서 <code>reco_bench</code> 의 결과를
+<strong>그대로 재현</strong> 할 수 있도록, 환경/시드/하드웨어 캡처/실행 순서/검증
+절차를 정의한다. 공개 시 reader 가 가장 먼저 검증할 파일.</p>
+</blockquote>
+<hr>
+<h2 id="1">1. 재현성의 세 층위</h2>
+<table>
+<thead>
+<tr>
+<th>층위</th>
+<th>목표</th>
+<th>본 벤치마크의 보장</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1: bit-exact</strong></td>
+<td>모든 부동소수점 값이 동일</td>
+<td>불가능 (CUDA non-determinism, ANN 알고리즘 자체의 stochastic 성격)</td>
+</tr>
+<tr>
+<td><strong>L2: metric-stable</strong></td>
+<td>시드만 같으면 Recall/QPS 가 ±1% 이내</td>
+<td><strong>목표</strong></td>
+</tr>
+<tr>
+<td><strong>L3: pareto-stable</strong></td>
+<td>Recall-QPS Pareto frontier 의 형태가 그대로</td>
+<td><strong>반드시 보장</strong></td>
+</tr>
+</tbody>
+</table>
+<p>본 벤치마크는 L2 를 목표로 하고, L3 는 절대 깨지지 않도록 설계한다.
+("VDPU 6~7×" 같은 영업 결론은 L3 의 안정성에 의존한다.)</p>
+<hr>
+<h2 id="2-phase-1">2. 환경 핀 (Phase 1 검증 후 갱신 예정)</h2>
+<h3 id="21-phase-1-2026-06-04">2.1 베이스 시스템 (Phase 1 환경 검증 후 2026-06-04 갱신)</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>검증된 값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OS</td>
+<td>Linux (kernel 5.15.0-1083-nvidia)</td>
+</tr>
+<tr>
+<td>GPU</td>
+<td>4× NVIDIA H100 80GB HBM3 (compute capability 9.0)</td>
+</tr>
+<tr>
+<td>GPU Driver</td>
+<td>535.247.01 (driver-bundled CUDA 12.2)</td>
+</tr>
+<tr>
+<td>CUDA Toolkit</td>
+<td>12.8 (<code>/usr/local/cuda-12.8</code>)</td>
+</tr>
+<tr>
+<td>Python</td>
+<td>3.12.3 (system-wide <code>/usr/local/bin/python</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-python">2.2 Python 환경</h3>
+<p>다음 설치 명령은 본 Pod 에서 검증된 시퀀스이다 (<code>reports/history/2026-06-04_env-setup.md</code> 참조).</p>
+<pre><code class="language-bash"># 본 저장소 + 핵심 Python 의존성
+pip install -e .
+pip install -r requirements.txt
+
+# CPU/모델/sanity 패키지
+pip install faiss-cpu sentence-transformers scikit-learn nvidia-ml-py
+
+# cuVS (GPU IVF-PQ + CAGRA) + pylibraft + cupy — NVIDIA pip 채널
+pip install --extra-index-url https://pypi.nvidia.com \
+    cuvs-cu12 pylibraft-cu12 cupy-cuda12x
+
+# ScaNN (선택, x86_64 + AVX2)
+pip install scann
+</code></pre>
+<p>검증된 버전 (2026-06-04 시점):</p>
+<table>
+<thead>
+<tr>
+<th>패키지</th>
+<th>버전</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>torch</code></td>
+<td>2.9.1+cu128 (CUDA 12.8 wheel)</td>
+</tr>
+<tr>
+<td><code>numpy</code></td>
+<td>2.4.3</td>
+</tr>
+<tr>
+<td><code>pandas</code></td>
+<td>3.0.1</td>
+</tr>
+<tr>
+<td><code>pyarrow</code></td>
+<td>23.0.1</td>
+</tr>
+<tr>
+<td><code>faiss-cpu</code></td>
+<td>1.14.2 (HNSW for CPU baseline)</td>
+</tr>
+<tr>
+<td><code>cuvs</code></td>
+<td>26.04.000</td>
+</tr>
+<tr>
+<td><code>pylibraft</code></td>
+<td>26.04.000</td>
+</tr>
+<tr>
+<td><code>cupy-cuda12x</code></td>
+<td>14.1.1</td>
+</tr>
+<tr>
+<td><code>sentence-transformers</code></td>
+<td>5.5.1</td>
+</tr>
+<tr>
+<td><code>transformers</code></td>
+<td>5.8.1</td>
+</tr>
+<tr>
+<td><code>datasets</code></td>
+<td>4.8.4</td>
+</tr>
+<tr>
+<td><code>scikit-learn</code></td>
+<td>1.9.0</td>
+</tr>
+<tr>
+<td><code>nvidia-ml-py</code> (pynvml)</td>
+<td>≥12.535</td>
+</tr>
+<tr>
+<td><code>matplotlib</code></td>
+<td>3.10.9</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-environment">2.3 알려진 environment 트랩</h3>
+<ul>
+<li><strong>faiss-gpu (pip <code>faiss-gpu-cu12</code>) 와 PyTorch + cuVS 공존 시 cublas ABI 충돌</strong> 발생 (<code>undefined symbol: cublasLtGetEnvironmentMode</code>). 본 벤치마크는 이를 회피하기 위해 <strong>GPU 측 retriever 를 cuVS 로 통일</strong> (CAGRA + IVF-PQ). FAISS 는 CPU baseline 전용으로만 사용한다.</li>
+<li>pip 으로 <code>faiss-gpu-cu12</code> 가 설치된 후 uninstall 하면 <code>faiss-cpu</code> 의 swig 바인딩이 깨질 수 있으므로 <code>pip install --force-reinstall --no-deps faiss-cpu</code> 로 복구.</li>
+</ul>
+<h3 id="23">2.3 환경 변수</h3>
+<pre><code class="language-bash">export CUDA_VISIBLE_DEVICES=0   # 멀티 GPU 환경에서 단일 GPU 측정
+export RECO_BENCH_DATA=/path/to/data
+export RECO_BENCH_SEED=42
+export PYTHONHASHSEED=42
+</code></pre>
+<hr>
+<h2 id="3">3. 시드 정책</h2>
+<p>다음 모든 시드를 <strong>42</strong> 로 고정:</p>
+<table>
+<thead>
+<tr>
+<th>위치</th>
+<th>시드</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>random.seed</code></td>
+<td><code>RECO_BENCH_SEED</code></td>
+</tr>
+<tr>
+<td><code>numpy.random.seed</code></td>
+<td>동일</td>
+</tr>
+<tr>
+<td><code>torch.manual_seed</code> / <code>torch.cuda.manual_seed_all</code></td>
+<td>동일</td>
+</tr>
+<tr>
+<td>PyTorch DataLoader <code>worker_init_fn</code></td>
+<td>동일</td>
+</tr>
+<tr>
+<td><code>os.environ['PYTHONHASHSEED']</code></td>
+<td>동일</td>
+</tr>
+<tr>
+<td>FAISS / cuVS / ScaNN seed parameter</td>
+<td>동일</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Determinism flag</strong> 는 사용하지 않는다 (<code>torch.use_deterministic_algorithms</code>).
+이유: matmul 의 atomic add 가 비결정적이며, 강제 결정적 알고리즘은 학습/
+인덱스 빌드를 10× 이상 느리게 만들어 벤치마크의 신뢰성을 해친다. 대신
+<strong>L2 (metric-stable)</strong> 목표를 채택한다.</p>
+<hr>
+<h2 id="4">4. 하드웨어 캡처</h2>
+<p>각 실행 시 자동으로 다음이 <code>results/&lt;exp_id&gt;/hardware.json</code> 에 덤프됨
+(<code>reco_bench/utils/gpu_info.py</code>).</p>
+<pre><code class="language-bash"># 수동 캡처 (디버깅용)
+lscpu &gt; hw.txt
+lspci | grep -i nvidia &gt;&gt; hw.txt
+nvidia-smi -q &gt;&gt; hw.txt
+nvcc --version &gt;&gt; hw.txt
+free -h &gt;&gt; hw.txt
+</code></pre>
+<p>이 dump 가 Phase 2 결과 비교 시 hardware drift 를 감지하는 근거가 된다.</p>
+<hr>
+<h2 id="5-end-to-end">5. End-to-end 재현 절차</h2>
+<p>깨끗한 머신에서 다음 한 줄로 처음부터 끝까지 재현:</p>
+<pre><code class="language-bash"># 0. 환경 (§2 참고)
+conda activate reco_bench
+
+# 1. 데이터 다운로드 + 전처리 (~15분 ML-25M / ~1시간 Amazon-Beauty)
+bash scripts/00_download_data.sh ml25m
+bash scripts/00_download_data.sh amazon_beauty
+
+# 2. Two-tower 학습 (1× H100 기준 ML-25M ~30분 / Amazon-Beauty ~2시간)
+bash scripts/10_train_two_tower.sh configs/experiments/phase1_baseline.yaml
+
+# 3. ANN index 빌드 (전체 grid, ~30분)
+bash scripts/20_build_index.sh configs/experiments/phase1_baseline.yaml
+
+# 4. 벤치마크 실행 (concurrency × grid × dataset; ~2시간)
+bash scripts/30_run_benchmark.sh configs/experiments/phase1_baseline.yaml
+
+# 5. 자동 리포트 생성
+bash scripts/99_make_report.sh
+</code></pre>
+<p>산출물:
+- <code>reports/baseline_results.md</code>
+- <code>reports/figures/*.png</code>
+- <code>results/&lt;exp_id&gt;/*</code> (raw)</p>
+<hr>
+<h2 id="6">6. 결과 비교 절차</h2>
+<p>본인의 실행 결과를 본 저장소의 reference 결과와 비교하려면:</p>
+<pre><code class="language-bash"># 본 저장소가 발표한 reference 결과를 받는다 (Phase 1 종료 후 공개)
+git fetch origin reference-results
+git checkout origin/reference-results -- reports/reference/
+
+# 차이 계산 (메트릭별 절대/상대 오차)
+python -m reco_bench.utils.compare \
+    --mine results/&lt;my_exp_id&gt;/aggregate.csv \
+    --ref reports/reference/aggregate.csv
+</code></pre>
+<p><code>compare</code> 의 통과 기준:
+- Recall@10 (vs exact): ±0.01
+- Recall@10 (vs ground truth): ±0.02
+- QPS: ±10% (CUDA non-determinism)
+- P99 latency: ±15%
+- Recall-QPS Pareto 의 frontier 위 점 개수: 동일</p>
+<p>기준을 통과하지 못하면 hardware/driver drift, 또는 측정 무결성 체크리스트
+(<code>01_metric_design.md §7</code>) 의 항목 점검.</p>
+<hr>
+<h2 id="7">7. 자주 묻는 재현 실패 원인</h2>
+<h3 id="71-gpu">7.1 GPU 가 다른 모델</h3>
+<p>본 reference 결과는 H100 SXM5 80G 기준. A100, L40, H100 PCIe 등은 QPS 가
+다르게 측정될 수 있음. cost ratio 는 영향받지 않지만 절대 QPS 는 다름.</p>
+<h3 id="72-cuda-cuvs">7.2 CUDA / cuVS 버전 불일치</h3>
+<p>cuVS 의 CAGRA 알고리즘 자체는 버전 간 호환이지만, 24.06 ~ 24.10 사이에
+default param 이 바뀌었음. 본 벤치마크는 <strong>24.10 기준</strong> 의 default 를
+사용. 다른 버전 사용 시 명시.</p>
+<h3 id="73-gpu">7.3 다른 프로세스가 GPU 사용 중</h3>
+<p><code>nvidia-smi pmon -c 1</code> 으로 측정 시작 전 다른 프로세스가 없는지 확인.
+공유 환경 (Kubernetes pod 등) 에서는 reserved GPU 보장 필수.</p>
+<h3 id="74-mirror">7.4 데이터셋 다운로드 mirror 다름</h3>
+<p>HuggingFace mirror 에 따라 row 순서가 미세하게 다를 수 있음. 본 벤치마크
+는 <code>id_map.json</code> 의 <strong>content hash</strong> 를 비교해 데이터 동일성 검증.</p>
+<h3 id="75-loss-spike">7.5 학습 loss spike</h3>
+<p>bf16 학습은 드물게 loss spike 가 발생 가능. spike 발생 시 시드만 다른
+재시도 (가령 seed=43) 가 가장 빠른 해결. 본 벤치마크는 spike 발생을
+<code>train_meta.json</code> 의 <code>loss_spikes</code> 필드에 기록하여 추적.</p>
+<hr>
+<h2 id="8-pr">8. 재현성 체크리스트 (PR 머지 전)</h2>
+<p>PR 이 본 벤치마크의 결과를 변경한다면 다음을 모두 체크:</p>
+<ul>
+<li>[ ] 같은 머신에서 두 번 실행한 결과의 L2 (±1%) 통과</li>
+<li>[ ] 다른 머신 (가능하면 다른 GPU 모델) 에서의 L3 (Pareto 형태) 보존</li>
+<li>[ ] <code>requirements.txt</code>, <code>pyproject.toml</code> 의 버전 변경 없음
+  (있다면 <code>reports/history/</code> 에 entry)</li>
+<li>[ ] <code>configs/cost_model.yaml</code> 의 snapshot 날짜 갱신 여부 확인</li>
+<li>[ ] 새 reference 결과를 <code>reports/reference/</code> 로 푸시</li>
+<li>[ ] <code>reports/baseline_results.md</code> 자동 재생성</li>
+</ul>
+<hr>
+<h2 id="9-known-non-determinism">9. 알려진 비결정성 (known non-determinism)</h2>
+<table>
+<thead>
+<tr>
+<th>출처</th>
+<th>영향</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CUDA atomic add in matmul</td>
+<td>learn loss 의 micro-difference, train Recall 의 ~0.1% 변동</td>
+</tr>
+<tr>
+<td>cuVS CAGRA 의 graph build 의 무작위 sampling</td>
+<td>같은 시드여도 graph 가 약간 다름, search QPS 의 ~3% 변동</td>
+</tr>
+<tr>
+<td><code>nvidia-smi power.draw</code> 의 100ms 샘플링</td>
+<td>평균 power 의 ~2% 변동</td>
+</tr>
+<tr>
+<td>ScaNN 의 multi-thread reduction 순서</td>
+<td>QPS 의 ~5% 변동</td>
+</tr>
+</tbody>
+</table>
+<p>위 노이즈는 모두 L2 (±1%) 보다는 크지만 cost ratio (보통 6~7×) 보다는
+훨씬 작다. 따라서 영업 결론에 영향 없음.</p>
+<hr>
+<h2 id="10-pinning-policy">10. Pinning policy (공개 시)</h2>
+<p>본 저장소가 공개되면 main branch 의 <code>requirements.txt</code> 와 RAPIDS 버전이
+<strong>고정 (frozen)</strong> 된다. 변경하려면:</p>
+<ol>
+<li>별도 branch 에서 변경.</li>
+<li><code>reports/history/&lt;date&gt;_dependency-bump.md</code> entry 작성.</li>
+<li>reference 결과 재생성.</li>
+<li>PR.</li>
+</ol>
+<hr>
+<h2 id="11">11. 변경 이력</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-20</td>
+<td>초안 작성</td>
+<td>Phase 0 초기 설계. Phase 1 환경 검증 후 §2 의 버전 핀이 tighten 됨.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

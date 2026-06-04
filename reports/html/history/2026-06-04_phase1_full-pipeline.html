@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_phase1_full-pipeline · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 1 &nbsp;·&nbsp; <b>topic</b>: phase1-full-pipeline &nbsp;·&nbsp; <b>status</b>: in_progress</div>
+<h1 id="phase-1-full-pipeline-6-retriever-2-dataset-end-to-end">Phase 1 full pipeline: 6 retriever × 2 dataset end-to-end</h1>
+<h2 id="what-changed">What changed</h2>
+<p>본 entry 는 사용자가 명시한 두 가지 추가 요구사항을 반영하는 작업:
+1. "쉬운 계산/측정/비교" — 단일 명령으로 retriever × dataset 비교
+2. "여러 vector DB 쉽게 추가" — Milvus, Qdrant 도 baseline 으로 포함
+3. "속도에 대한 평가가 중요" — speedup ratio 를 리포트의 1차 지표로</p>
+<h3 id="retriever-phase-15-phase-1">추가된 retriever 구현 (Phase 1.5 가 Phase 1 으로 흡수)</h3>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>파일</th>
+<th>검증 결과</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Milvus Lite</td>
+<td><code>reco_bench/retrievers/milvus_lite.py</code></td>
+<td>500-item synth: build 0.04s, search OK</td>
+</tr>
+<tr>
+<td>Qdrant Local</td>
+<td><code>reco_bench/retrievers/qdrant_local.py</code></td>
+<td>500-item synth: build 0.15s, search OK</td>
+</tr>
+<tr>
+<td>ScaNN CPU</td>
+<td><code>reco_bench/retrievers/scann_cpu.py</code></td>
+<td>500-item synth: build 0.06s, search OK</td>
+</tr>
+</tbody>
+</table>
+<p>모두 in-process Python binding 만 사용 (서버 없이 동작). 세 retriever
+모두 같은 query 에 같은 top-5 ID 반환 → 인터페이스 일관성 검증.</p>
+<h3 id="experiment">새 experiment</h3>
+<ul>
+<li><code>configs/experiments/phase1_full.yaml</code> — 6 retriever × 2 dataset
+  (ML-25M, Amazon-Beauty) 의 통합 평가.</li>
+<li><code>configs/experiments/phase1_v1.yaml</code> — hyperparameter v1 시도 (logQ
+  off, dim 256). <strong>결과: Recall@100 0.034 → v0 보다 더 떨어짐.</strong>
+  logQ correction 이 필수임을 확인. v1 폐기, v0 로 회귀.</li>
+<li><code>configs/experiments/phase1_amazon_only.yaml</code> — Amazon-Beauty 만
+  학습.</li>
+</ul>
+<h3 id="pipeline">Pipeline 코드 갱신</h3>
+<ul>
+<li><code>reco_bench/pipelines/evaluate.py</code> — search grid extraction 에
+  <code>hnsw_ef_grid</code>, <code>ef_grid</code>, <code>leaves_to_search_grid</code> 지원 추가.</li>
+<li><code>reco_bench/pipelines/report.py</code> — <code>_speedup_table</code> 추가 (iso-recall
+  0.95 기준 baseline 대비 QPS 배수 자동 계산 + markdown 출력).</li>
+<li><code>reco_bench/utils/io.py</code> — <code>dump_json</code> 의 default encoder 에 date/
+  datetime/numpy scalar 처리 (Phase 0 의 cost_model.yaml 의 <code>snapshot_date</code>
+  가 yaml 으로부터 date 객체로 파싱되어 JSON dump 실패하던 버그 fix).</li>
+</ul>
+<h3 id="_1">사용자용 도구</h3>
+<ul>
+<li><code>QUICKSTART.md</code> 추가 — 처음 보는 사람을 위한 5분 가이드.</li>
+<li><code>README.md</code> 의 Quick Start 섹션을 6 retriever 비교 표 + 단일 명령
+  흐름으로 강화.</li>
+</ul>
+<h3 id="_2">데이터셋</h3>
+<ul>
+<li><strong>MovieLens-25M</strong>: 학습 (Recall@100 best 0.183 at v0) + 6 retriever
+  build 완료. 평가 진행 중.</li>
+<li><strong>Amazon Reviews 2023 Beauty</strong>: 다운로드 + 전처리 완료
+  (491k users, 162k items, 3.97M train interactions).
+  HuggingFace datasets 4.x 의 dataset script 지원 중단으로 인해 raw
+  jsonl 을 <code>huggingface_hub.hf_hub_download</code> 로 직접 받는 방식으로 우회.
+  학습은 ML-25M 평가 종료 후 진행 예정.</li>
+</ul>
+<h2 id="why">Why</h2>
+<ul>
+<li>Milvus / Qdrant 같은 in-process 모드 vector DB 는 ann-benchmarks 와
+  VectorDBBench 의 측정 frame 을 그대로 적용 가능. 서버 모드는 network
+  latency 가 들어가 fair 비교 어려움 → 본 phase 는 in-process 만 사용.</li>
+<li>ScaNN 은 CPU 강자 (Google 의 internal recommender 에서 사용) — VDPU
+  의 CPU-side 비교에서 강한 baseline.</li>
+<li>v1 hyperparameter (logQ off) 가 더 떨어진 것은 <strong>logQ correction 이
+  in-batch negative 의 popular item bias 를 보정하는 핵심 메커니즘</strong> 임
+  을 의미. ML-25M 같이 dense 한 데이터에서는 절대 끄면 안 됨.</li>
+<li><strong>speedup ratio</strong> 를 리포트 1차 지표로 둔 것은 사용자의 "속도 향상
+  몇 배" 영업 narrative 와 직접 매칭. iso-recall (0.95) 기준으로 통일.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li>6 retriever 모두 build 성공:</li>
+<li>faiss_hnsw_cpu: 0.08s</li>
+<li>cuvs_ivfpq: 0.59~5.66s (warmup 차이)</li>
+<li>cuvs_cagra: 0.21~5.34s</li>
+<li>milvus_lite: 2.05s</li>
+<li>qdrant_local: 8.90s (local mode 의 점진 insert)</li>
+<li>scann_cpu: 미실행 (평가 단계에서 자동 build 됨)</li>
+<li>모든 retriever 가 ml25m 의 첫 query 5개에 대해 동일 top-K 의 majority
+  를 반환 (검증 완료).</li>
+<li>speedup table 이 <code>reports/baseline_results.md</code> 의 메인 표 직후에
+  자동 생성.</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li>ML-25M 평가가 진행 중 (~10-15분 추정). 끝나면:
+  1. Amazon Beauty Two-tower 학습 (v0 hyperparameter, ~5분 추정).
+  2. Amazon Beauty 6 retriever build + 평가.
+  3. 최종 <code>baseline_results.md</code> 재생성.</li>
+<li><strong>v1 의 실패</strong> 는 향후 hyperparameter sweep 의 anti-pattern 으로
+  남김. 더 좋은 model quality 가 필요하면 <strong>logQ ON 을 유지하면서</strong>
+  capacity 또는 batch size 만 조정해야.</li>
+<li>ScaNN 의 <code>num_leaves</code> 가 ML-25M 의 24k items 에는 너무 크면 (default
+  2000) build 가 비효율적. <code>min(num_leaves, n // 4)</code> 로 clamp 한 것은
+  retrievers/scann_cpu.py 에 박혀 있다.</li>
+</ul>
+</body>
+</html>
