@@ -250,28 +250,49 @@ contextual bandit / dual tower 와의 통합 용이).</p>
 <td>CPU baseline 표준. GPU 미지원.</td>
 </tr>
 <tr>
+<td>FAISS-GPU IVF-PQ</td>
+<td><code>faiss-gpu</code> 1.10 (conda-forge)</td>
+<td>IVF + PQ</td>
+<td>GPU</td>
+<td>GPU IVF-PQ. <strong>H100(sm_90)</strong> 은 PyPI wheel 미지원 + PyTorch cublas ABI 충돌 → <strong>격리 conda env + worker</strong> (<code>scripts/faiss_gpu_worker.py</code>) 로 측정. <code>reports/history/2026-06-04_faiss-gpu-eval.md</code>.</td>
+</tr>
+<tr>
 <td>cuVS IVF-PQ</td>
 <td><code>cuvs.neighbors.ivf_pq</code> (cuVS 26.04)</td>
 <td>IVF + PQ</td>
 <td>GPU</td>
-<td>GPU baseline 의 메모리 효율 측. (원래 FAISS-GPU IVF-PQ 를 쓸 계획이었으나 PyTorch 와 cublas ABI 충돌해 cuVS 의 동등 구현체로 변경 — <code>reports/history/2026-06-04_env-setup.md</code> 참조.)</td>
+<td>FAISS-GPU IVF-PQ 와 동일 알고리즘의 RAPIDS 구현. main 파이프라인 통합 (PyTorch 와 공존).</td>
 </tr>
 <tr>
 <td>cuVS CAGRA</td>
 <td><code>cuvs.neighbors.cagra</code> (cuVS 26.04)</td>
 <td>CAGRA (graph)</td>
 <td>GPU</td>
-<td>GPU baseline 의 속도 측 (VDPU 의 진짜 경쟁)</td>
+<td>GPU graph 인덱스 (HNSW 의 GPU 대응). VDPU 의 진짜 경쟁.</td>
 </tr>
 <tr>
 <td>ScaNN</td>
 <td><code>scann</code> (pip)</td>
 <td>scann_partitioned</td>
 <td>CPU</td>
-<td>Google 의 CPU 강자, AVX2 gated, stretch</td>
+<td>Google 의 CPU 강자, AVX2 gated.</td>
+</tr>
+<tr>
+<td>Qdrant server</td>
+<td><code>qdrant</code> 1.12 standalone + gRPC</td>
+<td>HNSW</td>
+<td>CPU (client/server)</td>
+<td>오픈소스 vector DB <strong>서버</strong> (Docker 불가 → standalone 바이너리). per-query RPC.</td>
 </tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>FAISS-GPU 는 HNSW 미지원</strong> — FAISS 는 GPU 에서 IVF/PQ/Flat 만 제공
+(HNSW 는 CPU 전용). GPU graph 인덱스는 cuVS CAGRA 가 담당.
+<strong>FAISS-GPU IVF-PQ vs cuVS IVF-PQ</strong>: 같은 알고리즘이지만 측정 환경이
+다르다 (전자는 격리 conda env worker, 후자는 main 파이프라인). 직접
+throughput 비교 시 이 점을 감안 (§6 / findings §1 참조).</p>
+</blockquote>
 <h3 id="32-grid-recall-qps">3.2 파라미터 grid (Recall-QPS 곡선용)</h3>
 <p><strong>FAISS-CPU HNSW:</strong></p>
 <pre><code class="language-yaml">build:

@@ -6,7 +6,12 @@
 </blockquote>
 <h2>1. 한 페이지 요약 (TL;DR)</h2>
 <p>Phase 1 의 frame 으로 <strong>6개 retriever × 2개 데이터셋</strong> 의 측정이 단일
-명령 (<code>scripts/30_run_benchmark.sh</code>) 으로 가능함을 검증. 핵심 발견:</p>
+명령 (<code>scripts/30_run_benchmark.sh</code>) 으로 가능함을 검증.</p>
+<p>측정된 retriever (6종):
+- <strong>In-process ANN 라이브러리</strong>: FAISS-CPU HNSW, cuVS IVF-PQ (GPU),
+  cuVS CAGRA (GPU), ScaNN (CPU), <strong>FAISS-GPU IVF-PQ</strong> (GPU, conda env)
+- <strong>Client/server vector DB</strong>: Qdrant server (gRPC)</p>
+<p>핵심 발견:</p>
 <table>
 <thead>
 <tr>
@@ -20,8 +25,12 @@
 <td>ML-25M 24k items 같은 작은 corpus 에서는 CPU 의 latency advantage 가 GPU dispatch overhead 를 압도. GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후 드러남.</td>
 </tr>
 <tr>
-<td><strong>cuVS IVF-PQ 는 작은 corpus 에 부적합</strong></td>
-<td>24k items × nlist 4096 (cluster 당 6 items) 면 PQ 압축 효과 미미. recall vs exact max 0.46. → <strong>Phase 2 의 큰 corpus (수백만 items) 에서 IVF-PQ 의 진가 측정해야</strong></td>
+<td><strong>FAISS-GPU IVF-PQ 가 GPU 진영 최고 throughput</strong></td>
+<td>ML-25M 356k QPS / Amazon 57k QPS (nprobe sweep). 같은 IVF-PQ 알고리즘인 cuVS IVF-PQ (1,055 / 11,599 QPS) 보다 <strong>수십~수백 배 높음</strong> — FAISS 의 batch GPU search 가 cuVS python 바인딩보다 훨씬 효율적. <strong>단 recall vs exact 0.42~0.51 (PQ 압축 손실) 로 iso-recall 0.95 영역엔 도달 못함.</strong></td>
+</tr>
+<tr>
+<td><strong>IVF-PQ 계열(FAISS-GPU/cuVS)은 작은 corpus + high-recall 부적합</strong></td>
+<td>PQ 압축 손실로 recall vs exact 가 nprobe 를 올려도 0.5 부근에서 saturate. IVF-PQ 는 <strong>메모리 절감 + 초고속 throughput</strong> 이 강점이고 high-recall 이 목표면 CAGRA/HNSW 가 적합. → Recall-QPS Pareto 의 서로 다른 영역.</td>
 </tr>
 <tr>
 <td><strong>Vector DB 는 in-process ANN 라이브러리보다 현저히 느림</strong></td>
@@ -54,6 +63,13 @@
 <td><strong>$0.0021</strong></td>
 </tr>
 <tr>
+<td>FAISS-GPU IVF-PQ</td>
+<td>GPU (H100)</td>
+<td>0.4181</td>
+<td><strong>356,097</strong></td>
+<td>$0.0027</td>
+</tr>
+<tr>
 <td><strong>cuVS CAGRA</strong></td>
 <td>GPU (H100)</td>
 <td>1.0000</td>
@@ -66,6 +82,13 @@
 <td>0.4649</td>
 <td>1,055</td>
 <td>$0.9695</td>
+</tr>
+<tr>
+<td>Qdrant server (gRPC)</td>
+<td>CPU</td>
+<td>1.0000</td>
+<td>743</td>
+<td>$0.5306</td>
 </tr>
 <tr>
 <td>Milvus Lite (1 grid, 부분 측정)</td>
@@ -89,11 +112,18 @@
 </thead>
 <tbody>
 <tr>
+<td>FAISS-GPU IVF-PQ</td>
+<td>GPU (H100)</td>
+<td>0.5102</td>
+<td><strong>56,810</strong></td>
+<td><strong>$0.0028</strong></td>
+</tr>
+<tr>
 <td><strong>FAISS-CPU HNSW</strong></td>
 <td>CPU</td>
 <td>0.9973</td>
-<td><strong>38,711</strong></td>
-<td><strong>$0.0102</strong></td>
+<td>38,711</td>
+<td>$0.0102</td>
 </tr>
 <tr>
 <td><strong>cuVS CAGRA</strong></td>
@@ -116,8 +146,23 @@
 <td>5,196</td>
 <td>$0.0759</td>
 </tr>
+<tr>
+<td>Qdrant server (gRPC)</td>
+<td>CPU</td>
+<td>1.0000</td>
+<td>550</td>
+<td>$0.7177</td>
+</tr>
 </tbody>
 </table>
+<blockquote>
+<p><strong>IVF-PQ 계열의 recall 주의</strong>: FAISS-GPU IVF-PQ 와 cuVS IVF-PQ 는 PQ
+압축 손실로 recall vs exact 가 0.4~0.55 수준 (nprobe 를 올려도
+saturate). 따라서 <strong>iso-recall 0.95 speedup 비교에는 포함되지 않으며</strong>,
+이들은 Recall-QPS Pareto 곡선의 "초고속·저recall" 영역을 차지한다.
+high-recall 이 필요하면 CAGRA / HNSW, 메모리 절감 + throughput 이
+우선이면 IVF-PQ.</p>
+</blockquote>
 <p>(전체 표는 <a href="baseline_results.html"><code>baseline_results.md</code></a> 의 자동 생성
 결과 참조; Phase 1 의 Recall-QPS Pareto 곡선은 <a href="figures/recall_vs_qps.png"><code>figures/recall_vs_qps.png</code></a>.)</p>
 <h2>3. Iso-recall speedup ratio (사용자 요구사항: 속도 비교)</h2>

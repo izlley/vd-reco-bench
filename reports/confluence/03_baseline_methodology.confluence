@@ -146,9 +146,19 @@ h3. 3.1 Retriever 비교 매트릭스 (Phase 1)
 
 ||Retriever||구현체||Index||디바이스||비고||
 |FAISS-CPU HNSW|{{faiss-cpu}} 1.14|HNSW|CPU|CPU baseline 표준. GPU 미지원.|
-|cuVS IVF-PQ|{{cuvs.neighbors.ivf_pq}} (cuVS 26.04)|IVF + PQ|GPU|GPU baseline 의 메모리 효율 측. (원래 FAISS-GPU IVF-PQ 를 쓸 계획이었으나 PyTorch 와 cublas ABI 충돌해 cuVS 의 동등 구현체로 변경 — {{reports/history/2026-06-04_env-setup.md}} 참조.)|
-|cuVS CAGRA|{{cuvs.neighbors.cagra}} (cuVS 26.04)|CAGRA (graph)|GPU|GPU baseline 의 속도 측 (VDPU 의 진짜 경쟁)|
-|ScaNN|{{scann}} (pip)|scann_partitioned|CPU|Google 의 CPU 강자, AVX2 gated, stretch|
+|FAISS-GPU IVF-PQ|{{faiss-gpu}} 1.10 (conda-forge)|IVF + PQ|GPU|GPU IVF-PQ. *H100(sm_90)* 은 PyPI wheel 미지원 + PyTorch cublas ABI 충돌 → *격리 conda env + worker* ({{scripts/faiss_gpu_worker.py}}) 로 측정. {{reports/history/2026-06-04_faiss-gpu-eval.md}}.|
+|cuVS IVF-PQ|{{cuvs.neighbors.ivf_pq}} (cuVS 26.04)|IVF + PQ|GPU|FAISS-GPU IVF-PQ 와 동일 알고리즘의 RAPIDS 구현. main 파이프라인 통합 (PyTorch 와 공존).|
+|cuVS CAGRA|{{cuvs.neighbors.cagra}} (cuVS 26.04)|CAGRA (graph)|GPU|GPU graph 인덱스 (HNSW 의 GPU 대응). VDPU 의 진짜 경쟁.|
+|ScaNN|{{scann}} (pip)|scann_partitioned|CPU|Google 의 CPU 강자, AVX2 gated.|
+|Qdrant server|{{qdrant}} 1.12 standalone + gRPC|HNSW|CPU (client/server)|오픈소스 vector DB *서버* (Docker 불가 → standalone 바이너리). per-query RPC.|
+
+{quote}
+*FAISS-GPU 는 HNSW 미지원* — FAISS 는 GPU 에서 IVF/PQ/Flat 만 제공
+(HNSW 는 CPU 전용). GPU graph 인덱스는 cuVS CAGRA 가 담당.
+*FAISS-GPU IVF-PQ vs cuVS IVF-PQ*: 같은 알고리즘이지만 측정 환경이
+다르다 (전자는 격리 conda env worker, 후자는 main 파이프라인). 직접
+throughput 비교 시 이 점을 감안 (§6 / findings §1 참조).
+{quote}
 
 h3. 3.2 파라미터 grid (Recall-QPS 곡선용)
 

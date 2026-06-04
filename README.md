@@ -104,17 +104,22 @@ bash scripts/99_make_report.sh    configs/experiments/phase1_full.yaml
 # → reports/baseline_results.md + reports/figures/*.png
 ```
 
-비교 대상 (Phase 1 의 6 retriever, 한 명령 안에서 모두 측정):
+비교 대상 (Phase 1 측정 완료, 한 명령 안에서 측정):
 
-| 카테고리 | Retriever | Device |
-|---|---|---|
-| ANN 라이브러리 | FAISS-CPU HNSW | CPU |
-| ANN 라이브러리 | cuVS IVF-PQ | GPU |
-| ANN 라이브러리 | cuVS CAGRA | GPU |
-| ANN 라이브러리 | Google ScaNN | CPU (AVX2) |
-| Vector DB (in-process) | Milvus Lite | CPU |
-| Vector DB (in-process) | Qdrant Local | CPU |
-| 가속기 (Phase 2) | Dnotitia VDPU | — (예정) |
+| 카테고리 | Retriever | Device | 측정 환경 |
+|---|---|---|---|
+| ANN 라이브러리 | FAISS-CPU HNSW | CPU | main |
+| ANN 라이브러리 | FAISS-GPU IVF-PQ | GPU (H100) | 격리 conda env (sm_90) |
+| ANN 라이브러리 | cuVS IVF-PQ | GPU (H100) | main |
+| ANN 라이브러리 | cuVS CAGRA | GPU (H100) | main |
+| ANN 라이브러리 | Google ScaNN | CPU (AVX2) | main |
+| Vector DB (서버) | Qdrant server (gRPC) | CPU | standalone 바이너리 |
+| Vector DB (in-process) | Milvus Lite | CPU | 부분 측정 (lower bound) |
+| 가속기 (Phase 2) | Dnotitia VDPU | — | 예정 |
+
+> GPU 측정은 모두 **H100 1장 (`CUDA_VISIBLE_DEVICES=0`)** 기준.
+> FAISS-GPU 는 H100(sm_90) + PyTorch cublas ABI 충돌 때문에 격리 conda
+> env 의 worker 로 측정 (`reports/05_reproducibility.md §2`).
 
 ## 이 벤치마크가 필요한 이유
 

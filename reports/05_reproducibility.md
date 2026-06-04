@@ -51,6 +51,28 @@ pip install --extra-index-url https://pypi.nvidia.com \
 pip install scann
 ```
 
+**FAISS-GPU IVF-PQ (선택, 격리 conda env)** — H100(sm_90) 은 PyPI
+`faiss-gpu-cu12` wheel 이 미지원(`CUDA error 209: no kernel image`)이고
+PyTorch 의 cublas 12.8 과 ABI 충돌하므로, **conda-forge 의 faiss-gpu
+1.10 빌드(sm_90 포함)를 별도 env 에 격리** 설치한다.
+
+```bash
+# Miniconda (없으면)
+curl -sSL -o /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash /tmp/miniconda.sh -b -p /tmp/miniconda
+
+# conda-forge 만 사용 (defaults 채널 ToS 회피)
+/tmp/miniconda/bin/conda create -y -n faiss --override-channels \
+    -c conda-forge python=3.12 "faiss-gpu=1.10.0" "numpy<2"
+
+# 측정 (PyTorch 미사용 worker — main env 와 분리되어 ABI 충돌 없음)
+python scripts/dump_eval_arrays.py configs/experiments/phase1_full.yaml   # main env
+CUDA_VISIBLE_DEVICES=0 /tmp/miniconda/envs/faiss/bin/python scripts/faiss_gpu_worker.py
+```
+
+> faiss-gpu 를 main env 에 직접 설치하지 말 것 — cublas 를 12.9 로
+> 올려 PyTorch(2.9, cublas 12.8 핀)를 깨뜨린다. 반드시 격리 env.
+
 검증된 버전 (2026-06-04 시점):
 
 | 패키지 | 버전 |

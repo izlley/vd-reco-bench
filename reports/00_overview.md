@@ -151,8 +151,8 @@ VDPU 행은 Phase 2 에서 채워진다.
 
 | 카테고리 | 형태 | Phase | 예시 |
 |---|---|---|---|
-| **A. ANN 라이브러리** | in-process (Python binding) | 1 | FAISS-CPU HNSW, cuVS IVF-PQ, cuVS CAGRA, ScaNN |
-| **B. Vector DB 서버** | client/server (gRPC/HTTP) | 1.5 | Milvus, Qdrant, Weaviate, pgvector |
+| **A. ANN 라이브러리** | in-process (Python binding) | 1 | FAISS-CPU HNSW, **FAISS-GPU IVF-PQ**, cuVS IVF-PQ, cuVS CAGRA, ScaNN |
+| **B. Vector DB 서버** | client/server (gRPC/HTTP) | 1.5 | **Qdrant (측정 완료)**, Milvus, Weaviate, pgvector |
 | **C. VDPU** | 전용 가속기 + driver | 2 | Dnotitia VDPU FPGA / ASIC |
 
 세 카테고리 모두 동일한 (Recall, QPS, $/1M queries) 튜플로 보고되므로

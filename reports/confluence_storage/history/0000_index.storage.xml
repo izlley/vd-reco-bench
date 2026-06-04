@@ -125,6 +125,20 @@
 <td>1</td>
 <td><a href="2026-06-04_vectordb-server-eval.html">vectordb-server-eval</a></td>
 <td>completed</td>
+<td>Qdrant server-mode (gRPC, standalone 바이너리) 평가. ML-25M 743 / Amazon 550 QPS, recall vs exact 1.0. Milvus server 는 Docker 없이 비현실적.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_faiss-gpu-eval.html">faiss-gpu-eval</a></td>
+<td>completed</td>
+<td>FAISS-GPU IVF-PQ 평가 (conda-forge faiss-gpu 1.10, H100 sm_90, 격리 env worker). GPU 진영 최고 QPS 356k/57k, 단 IVF-PQ recall vs exact 0.42~0.51. 6 retriever × 2 dataset = 57 rows.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>1</td>
+<td><a href="2026-06-04_vectordb-server-eval.html">vectordb-server-eval</a></td>
+<td>completed</td>
 <td>Vector DB <strong>server-mode</strong> 평가. Docker 불가 → Qdrant standalone 바이너리 gRPC 서버로 측정 (ML-25M 743 QPS / Amazon 550, recall 1.0). Milvus 는 minio 의존으로 생략. keepalive 의 CPU-eval 오인 버그 수정. 5 retriever × 2 dataset 통합.</td>
 </tr>
 </tbody>

@@ -269,13 +269,13 @@ embedding 한 번이지만, ANN 은 수억 item 벡터를 query 마다 훑어야
 <td><strong>A. ANN 라이브러리</strong></td>
 <td>in-process (Python binding)</td>
 <td>1</td>
-<td>FAISS-CPU HNSW, cuVS IVF-PQ, cuVS CAGRA, ScaNN</td>
+<td>FAISS-CPU HNSW, <strong>FAISS-GPU IVF-PQ</strong>, cuVS IVF-PQ, cuVS CAGRA, ScaNN</td>
 </tr>
 <tr>
 <td><strong>B. Vector DB 서버</strong></td>
 <td>client/server (gRPC/HTTP)</td>
 <td>1.5</td>
-<td>Milvus, Qdrant, Weaviate, pgvector</td>
+<td><strong>Qdrant (측정 완료)</strong>, Milvus, Weaviate, pgvector</td>
 </tr>
 <tr>
 <td><strong>C. VDPU</strong></td>

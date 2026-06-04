@@ -1,0 +1,30 @@
+# FAISS-GPU IVF-PQ (GPU). H100(sm_90) 에서 동작하려면 conda-forge faiss-gpu
+# 1.10 빌드가 필요 (PyPI wheel 은 sm_90 미포함 + PyTorch cublas ABI 충돌).
+# 따라서 본 retriever 는 main 파이프라인이 아니라 격리된 conda env 의
+# worker (scripts/faiss_gpu_worker.py) 로 측정한다.
+# 결정 근거: reports/history/2026-06-04_faiss-gpu-eval.md.
+
+name: faiss_ivfpq_gpu
+impl: reco_bench.retrievers.faiss_gpu:FaissIvfPqGpu   # main env 에선 import 불가 (의도적)
+category: ann_library
+
+device: cuda
+
+measurement:
+  mode: isolated_worker                  # conda faiss env subprocess
+  conda_env: /tmp/miniconda/envs/faiss
+  worker: scripts/faiss_gpu_worker.py
+
+build:
+  nlist: 4096
+  pq_m: 16
+  pq_bits: 8
+  metric: inner_product
+
+search:
+  nprobe_grid: [1, 4, 16, 64, 256]
+
+note: |
+  같은 IVF-PQ 알고리즘인 cuvs_ivfpq 보다 batch GPU search throughput 이
+  수십~수백 배 높았으나 (FAISS 의 batch 최적화), PQ 압축 손실로 recall
+  vs exact 는 0.4~0.55 로 동일하게 낮음. iso-recall 0.95 영역 미도달.
