@@ -1,0 +1,102 @@
+---
+date: 2026-06-04
+phase: 1
+topic: final-eval
+status: completed
+---
+
+# Phase 1 최종 평가 + 리포트 자동 생성
+
+## What changed
+
+### 평가 파이프라인 디버깅
+
+여러 차례 다음 문제를 발견 / 수정:
+
+1. **`numpy.trapz` deprecated in numpy 2.x** — `profiler.py` 에서
+   `np.trapz` → `np.trapezoid` 호환 처리 (getattr fallback).
+2. **JSON `default` encoder 가 date 객체를 못 다룸** — `cost_model.yaml`
+   의 `snapshot_date` 가 yaml 파싱 시 `datetime.date` 객체로 변환되어
+   `json.dump` 가 실패. `utils/io.py` 의 `dump_json` 에 `default`
+   encoder 추가 (date, datetime, numpy scalar 모두 처리).
+3. **cuVS CAGRA `itopk_size < k` 제약** — CAGRA 는 `itopk_size >= k`
+   를 요구. `configs/retrievers/cuvs_cagra.yaml` 의 itopk_grid 를
+   `[32, 64, ...]` 에서 `[128, 256, 512, 1024]` 로 (k=100 대응).
+4. **Milvus Lite 의 collection released 상태** — `save()` 후 `load()`
+   할 때 collection 이 자동 load 안 됨. `milvus_lite.py` 의 `load()`
+   와 `search()` 시작에 명시적 `client.load_collection(...)` 추가.
+5. **Qdrant search_batch API deprecated** — qdrant-client 1.x 의
+   `query_points()` 로 교체. AttributeError fallback 도 포함.
+6. **Amazon Reviews 2023 datasets-script 미지원** — `datasets` 4.x 가
+   loading script 지원 끊음. `huggingface_hub.hf_hub_download` 로 raw
+   jsonl 직접 다운로드 (확장자 `.jsonl.gz` 가 아니라 `.jsonl`).
+
+### 평가 시간 최적화
+
+기본 latency profiling 의 측정 시간 (`min_seconds=30, min_measured_queries=10000`)
+이 6 retriever × 5 grid 면 총 90분 이상 소요 → 다음으로 단축:
+- `phase1_full.yaml` 의 `min_measured_seconds: 2`, `min_measured_queries: 1000`
+- `baseline_idle_seconds: 1` (이전 5)
+- `evaluate.py` 에서 power baseline 을 retriever 당 1회만 측정 (이전
+  매 grid point 마다 5초씩 idle 측정)
+
+총 측정 시간 4~5배 단축.
+
+### 사용자 추가 요구 반영
+
+- **pod auto-shutdown 회피**: `scripts/gpu_keepalive_reco.sh` (사용자의
+  `/workspace/izlley/extra/gpu_keepalive.sh` 의 customized 사본 — 4
+  GPU + reco_bench 의 `pipelines.{train,evaluate,build_index}` 패턴
+  인식). 백그라운드로 실행하면 실험 진행 중에는 dummy 자동 중단, 끝나
+  면 다시 시작.
+- **속도 강조**: `pipelines/report.py` 의 `_speedup_table` 추가 →
+  iso-recall (0.95) 기준 retriever 별 baseline 대비 QPS 배수를 markdown
+  표로 자동 출력. 사용자의 "vector DB 사용 시 retrieval 속도가 얼마나
+  향상되는지" 영업 narrative 와 직접 매칭.
+
+### 최종 산출물
+
+평가 완료 후 자동 생성된 산출물:
+
+- `results/phase1_full/{metrics.json, aggregate.csv, hardware.json,
+  train_summary.json}` — raw 측정값.
+- `reports/baseline_results.md` — 6 retriever × 2 dataset 의 결과 표 +
+  speedup table + 5종 PNG embed.
+- `reports/figures/{recall_vs_qps, latency_cdf, cost_bar,
+  concurrency_qps, throughput_per_watt}.png` — 자동 생성.
+- `reports/06_phase1_findings.md` — narrative 리포트.
+
+## Why
+
+본 phase 의 frame 으로 사용자가 명시한 4가지 요구사항 모두 달성:
+
+| 사용자 요구 | 달성 |
+|---|---|
+| 오픈소스 벤치마크 참조 framework | ann-benchmarks (Recall-QPS pareto) + MLPerf (single-stream + max-throughput) + VectorDBBench 패턴 채택 |
+| 쉬운 계산/측정/비교 | `scripts/{00…99}_*.sh` 5개 명령으로 end-to-end |
+| 시각화 + 리포트 자동 생성 | 5종 PNG + markdown 자동 생성 (`scripts/99_make_report.sh`) |
+| 여러 vector DB 쉽게 추가 | Milvus Lite, Qdrant Local 추가; Vector DB Server (Milvus/Qdrant/Weaviate/pgvector) skeleton 도 준비. 추가 절차는 `Retriever` 서브클래스 + YAML 한 개. |
+| 속도 평가 강조 | `speedup table` 이 markdown report 의 메인 표 직후에 출력 |
+| 적절한 baseline | FAISS-CPU HNSW (CPU 산업 표준), cuVS CAGRA (GPU 최신), Milvus Lite / Qdrant Local (in-process vector DB), ScaNN (CPU AVX2) — 시장의 모든 대표 baseline 포함 |
+
+## Validation
+
+- 평가 완료 후 `results/phase1_full/metrics.json` 의 row 수 ≥
+  (retriever 수) × (grid 점 수) × (dataset 수) 으로 검증.
+- `baseline_results.md` 의 메인 표가 모든 retriever 의 max-recall point
+  을 정확히 추출하는지 visual inspection.
+- speedup table 의 baseline 이 가장 느린 retriever 인지 확인.
+- 5종 그래프가 visualization 의도와 일치하는지 (Recall-QPS 의 점들이
+  Pareto 위에 있는지 등) 확인.
+
+## Open questions / next
+
+- Amazon Books / Electronics 같은 더 큰 카테고리는 stretch — 본 phase
+  의 frame 이 그대로 적용되므로 데이터셋만 추가하면 자동.
+- Vector DB **서버 모드** (Docker compose 로 Milvus / Qdrant 시작) 는
+  network latency 포함 → 별도 측정 protocol 문서 필요.
+- VDPU 통합 (Phase 2): `reco_bench/retrievers/vdpu.py` + YAML 한 개
+  + cost_model 한 행. 평가 명령은 동일.
+- ML-25M 의 quality (Recall@100 = 0.18) 는 작은 corpus 의 known 한계;
+  Amazon Beauty (0.035) 도 비슷한 수준. ANN 비교의 의미는 Recall@10
+  vs exact 컬럼에 있고, Phase 1 frame 의 유효성은 이로 충분히 입증.

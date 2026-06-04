@@ -1,0 +1,34 @@
+# Weaviate — 오픈소스 vector DB 서버. embedded mode 도 지원.
+# Phase 1.5 stub.
+
+name: weaviate
+impl: reco_bench.retrievers.weaviate:WeaviateRetriever
+category: vector_db_server
+
+device: cpu
+
+deployment:
+  mode: embedded                           # embedded | docker
+  docker_image: cr.weaviate.io/semitechnologies/weaviate:1.27.0
+  client_host: localhost
+  client_port: 8080
+
+build:
+  class_name: RecoBench
+  vector_index_type: hnsw
+  vector_index_config:
+    efConstruction: 200
+    maxConnections: 32
+    distance: dot                          # dot | cosine | l2-squared
+
+search:
+  ef_grid: [16, 32, 64, 128, 256, 512]
+
+sweep_axes:
+  maxConnections: [16, 32, 64]
+
+availability:
+  python_package: weaviate-client
+  install: "pip install weaviate-client"
+
+status: not_implemented_yet

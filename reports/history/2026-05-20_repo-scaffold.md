@@ -1,0 +1,67 @@
+---
+date: 2026-05-20
+phase: 0
+topic: repo-scaffold
+status: completed
+---
+
+# 저장소 골격 구축
+
+## What changed
+
+- 승인된 계획에 따라 전체 디렉토리 트리 생성:
+  `configs/{datasets,models,retrievers,experiments}`,
+  `reco_bench/{data,models,retrievers,eval,pipelines,utils}`,
+  `scripts/`, `data/{raw,processed}/`, `checkpoints/`, `indexes/`,
+  `results/`, `tests/`, `reports/{figures,history,planning}/`.
+- 공개 배포용 foundation 파일 추가:
+  - `LICENSE` (Apache-2.0, 디노티시아 2026).
+  - `CITATION.cff` (GitHub URL 은 placeholder; 공개 직전에 확정).
+  - `.gitignore` (데이터셋, checkpoints, indexes, results, 자동 생성
+    figure, 자동 생성 `reports/baseline_results.md` 모두 제외).
+  - `requirements.txt` 의도적으로 floor 만 두고 CUDA 의존 패키지
+    (faiss-gpu, cuVS, ScaNN) 는 핀하지 않음. 이들은 하드웨어에서
+    검증 후 `reports/05_reproducibility.md` 에 확정.
+  - `pyproject.toml` 로 `reco_bench` 패키지 선언, ruff/pytest 설정.
+- 승인된 계획 산출물을 `reports/planning/2026-05-20_phase0-plan.md` 로
+  복사하고 상단에 source-of-truth 상태 배너 추가.
+- `reports/planning/README.md` 를 작성하여 planning 디렉토리의 역할
+  (`reports/history/` 와의 차이) 을 설명.
+
+## Why
+
+- 사용자가 두 가지를 명시적으로 요구했고, 이게 이 단계의 동기였다:
+  (a) 모든 리포트는 `./reports` 아래에,
+  (b) 초기 plan 같은 중간 문서도 공개 배포 transparency 를 위해
+  `reports/` 에 보관. 이를 위해 `reports/planning/` (제안 문서)과
+  `reports/history/` (시간순 로그) 를 분리. 한 쪽이 다른 쪽을 모방하지
+  않으면서 두 형태의 정보를 함께 보존한다.
+- `LICENSE` 와 `CITATION.cff` 는 지금 추가하는 비용이 거의 0이며, 공개
+  직전에 retrofit 하는 고통을 피한다. Apache-2.0 은 디노티시아의 파트너
+  와 고객이 자유롭게 fork/수정할 수 있어야 하는 벤치마크에 표준 선택.
+- `.gitignore` 는 보수적으로 설정. 연구용 라이센스 데이터셋과 그
+  파생물을 모두 기본 제외하여, 실수로 `git add .` 했을 때도 라이센스
+  위반이 발생하지 않도록 한다.
+- `requirements.txt` 는 GPU 의존 라이브러리를 의도적으로 under-pin.
+  이들은 pod 의 CUDA toolkit 과 매칭되어야 하는데, 그 환경을 아직
+  확인하지 않았다. 미리 pin 하면 실 하드웨어 환경에 진입하는 순간
+  rewrite 가 필요해진다.
+
+## Validation
+
+- 디렉토리 listing 으로 트리 존재와 쓰기 가능 확인
+  (`ls -la /workspace/izlley/sllm/reco_bench/`).
+- `LICENSE` 는 정식 Apache-2.0 본문 + copyright line 채워짐.
+- `pyproject.toml` 의 `[tool.setuptools.packages.find]` 는 `reco_bench*`
+  만 포함하므로 빌드 시 `tests/`, `data/` 등이 패키지에 끌려들어가지
+  않는다.
+
+## Open questions / next
+
+- 저장소는 아직 `git init` 안 된 상태. 공개 예정이므로 (이미 준비된
+  `.gitignore` 와 함께) git 초기화가 다음 housekeeping 단계가 되겠지만,
+  사용자가 요청하지 않았으므로 보류.
+- `CITATION.cff` 의 authors block 은 조직 수준 placeholder. commit 이
+  쌓이면 개별 기여자를 추가해야 한다.
+- 다음 구현 단계는 본질적인 Phase 0 문서들: `00_overview.md`,
+  `01_metric_design.md`, `04_vdpu_value_proposition.md`.

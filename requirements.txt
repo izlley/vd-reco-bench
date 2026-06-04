@@ -1,0 +1,34 @@
+# Phase 1 환경에서 검증된 버전 (2026-06-04).
+# 자세한 install 시퀀스는 reports/05_reproducibility.md §2 참조.
+#
+# cuVS / cupy / pylibraft 는 NVIDIA pip index 가 필요하므로 별도 명령
+# (`pip install --extra-index-url https://pypi.nvidia.com cuvs-cu12 pylibraft-cu12 cupy-cuda12x`).
+
+# Core
+torch>=2.9,<3.0                       # CUDA 12.8 wheel
+numpy>=2.0,<3.0
+pandas>=2.2
+pyarrow>=15.0
+pyyaml>=6.0
+tqdm>=4.66
+scikit-learn>=1.5
+
+# Two-tower text encoder (Amazon dataset 만)
+sentence-transformers>=3.0
+transformers>=4.44
+datasets>=2.20
+
+# ANN baselines
+faiss-cpu>=1.14                        # CPU HNSW baseline. GPU 측은 cuVS 사용 (별도 install).
+
+# Reporting
+matplotlib>=3.8
+jinja2>=3.1
+
+# Telemetry
+nvidia-ml-py>=12.535
+
+# Dev / test
+pytest>=8.0
+pytest-xdist>=3.5
+ruff>=0.5

@@ -1,0 +1,30 @@
+name: amazon_electronics
+display_name: "Amazon Reviews 2023 — Electronics"
+
+source:
+  type: huggingface
+  hub_repo: "McAuley-Lab/Amazon-Reviews-2023"
+  config_review: "raw_review_Electronics"
+  config_meta: "raw_meta_Electronics"
+  raw_dir: data/raw/amazon-2023/Electronics
+
+processed_dir: data/processed/amazon_electronics
+
+preprocessing:
+  implicit_positive_rating_threshold: 4.0
+  kcore_min_interactions: 5
+  split_policy: temporal_global
+  split_ratios: [0.90, 0.05, 0.05]
+
+item_features:
+  use_text: true
+  text_columns: [title, brand, features]
+  text_max_chars: 256
+  text_encoder: "sentence-transformers/all-MiniLM-L6-v2"
+  text_encoder_dim: 384
+  freeze_text_encoder: true
+
+stats_expected:
+  num_users_min: 2_000_000
+  num_items_min: 500_000
+  num_interactions_min: 20_000_000

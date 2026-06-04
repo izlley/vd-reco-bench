@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+title: "reco_bench: A Two-Tower Retrieval Benchmark for Vector-DB Accelerators"
+message: "If you use this benchmark in academic work, please cite it as below."
+type: software
+authors:
+  - family-names: "Dnotitia"
+    name-particle: ""
+    given-names: ""
+    affiliation: "Dnotitia, Inc."
+repository-code: "https://github.com/dnotitia/reco_bench"  # placeholder — replace before public release
+license: Apache-2.0
+abstract: >
+  reco_bench measures the cost-efficiency of approximate nearest neighbor (ANN)
+  retrieval in two-tower recommender systems, with a focus on isolating the
+  vector-search stage so that emerging accelerators (CPUs, GPUs, and vector-DB
+  processing units such as Dnotitia VDPU) can be compared on an iso-recall basis.
+  The benchmark reports Recall@K / NDCG@K alongside QPS, P99 latency, energy,
+  and cost-per-query, and produces Recall-QPS Pareto curves following the
+  ann-benchmarks convention.
+keywords:
+  - recommender-systems
+  - two-tower
+  - approximate-nearest-neighbor
+  - benchmark
+  - vector-database
+  - VDPU
+  - FAISS
+  - cuVS
+  - ScaNN

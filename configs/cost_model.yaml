@@ -1,0 +1,67 @@
+# 클라우드/하드웨어 SKU 별 비용 스냅샷.
+# reports/01_metric_design.md §4.3 와 reports/04_vdpu_value_proposition.md
+# §3 가 본 파일을 참조한다.
+#
+# 가격은 시간에 따라 변동하므로 각 행에 snapshot_date 와 source_url 을
+# 명시한다. 갱신 시 reports/history/ 에 entry 를 남긴다.
+
+skus:
+  h100_sxm5_80g_aws_p5:
+    description: "AWS p5.48xlarge (8× H100 SXM5 80G) per-GPU 단가"
+    hourly_usd: 4.90
+    tdp_watt: 700
+    idle_watt: 80
+    snapshot_date: 2026-05-20
+    source_url: "https://aws.amazon.com/ec2/instance-types/p5/"
+
+  h100_pcie_80g_aws_p5e:
+    description: "AWS p5e (H100 PCIe) per-GPU 단가 (참고용)"
+    hourly_usd: 3.85
+    tdp_watt: 350
+    idle_watt: 60
+    snapshot_date: 2026-05-20
+    source_url: "https://aws.amazon.com/ec2/instance-types/p5e/"
+
+  a100_sxm4_80g_aws_p4d:
+    description: "AWS p4d.24xlarge (8× A100 SXM4 80G) per-GPU 단가"
+    hourly_usd: 4.10
+    tdp_watt: 400
+    idle_watt: 50
+    snapshot_date: 2026-05-20
+    source_url: "https://aws.amazon.com/ec2/instance-types/p4/"
+
+  epyc_7763_2s_aws_c7a:
+    description: "AWS c7a.48xlarge (2-socket EPYC 7763 등가) per-instance 단가"
+    hourly_usd: 1.42
+    tdp_watt: 280
+    idle_watt: 30
+    snapshot_date: 2026-05-20
+    source_url: "https://aws.amazon.com/ec2/instance-types/c7a/"
+
+  # Phase 2 에서 채워질 VDPU SKU. 양산 가격 미공개이므로 cloud-equivalent
+  # 추정치를 사용하며 산정 방법은 reports/04_vdpu_value_proposition.md §9
+  # 의 open question 에서 확정된다.
+  vdpu_fpga_v1:
+    description: "Dnotitia VDPU FPGA prototype (Phase 2 측정 시 갱신)"
+    hourly_usd: null
+    tdp_watt: null
+    idle_watt: null
+    snapshot_date: null
+    source_url: null
+
+  vdpu_asic_v1:
+    description: "Dnotitia VDPU ASIC (2026 양산 예정, Phase 2.5)"
+    hourly_usd: null
+    tdp_watt: null
+    idle_watt: null
+    snapshot_date: null
+    source_url: null
+
+# 운영 전제 (reports/04_vdpu_value_proposition.md §3 의 TCO 모델용).
+ops_assumptions:
+  electricity_usd_per_kwh: 0.10        # 한국 산업용 평균 (KEPCO 공개 자료, 2025)
+  data_center_pue: 1.4                  # tier-3 IDC 평균
+  amortization_years: 3
+  utilization_fraction: 0.7
+  ops_opex_ratio: 0.15                  # TCO 의 15%
+  workload_queries_per_day: 1_000_000_000

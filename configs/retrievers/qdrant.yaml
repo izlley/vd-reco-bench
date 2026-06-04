@@ -1,0 +1,27 @@
+# Qdrant — 오픈소스 vector DB 서버 (Phase 1.5).
+# Milvus 보다 가벼우며 in-process (qdrant_client local mode) 와 server 모두
+# 지원. 결정 근거: reports/history/2026-06-04_user-requirements-clarified.md.
+
+name: qdrant_local
+impl: reco_bench.retrievers.qdrant_local:QdrantLocal
+category: vector_db_server
+
+device: cpu
+
+deployment:
+  mode: local                              # in-process; docker 는 추후
+
+build:
+  collection_name: reco_bench
+  vectors_config:
+    distance: Dot                          # L2-norm 후 IP = cosine
+    hnsw_config:
+      m: 32
+      ef_construct: 200
+
+search:
+  hnsw_ef_grid: [16, 32, 64, 128, 256, 512]
+
+availability:
+  python_package: qdrant-client
+  install: "pip install qdrant-client"

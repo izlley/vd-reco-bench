@@ -1,0 +1,5 @@
+experiment_id: phase1_combined
+reporting:
+  output_dir: results/phase1_combined
+  generate_markdown: reports/baseline_results.md
+  generate_figures: reports/figures/

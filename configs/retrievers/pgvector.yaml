@@ -1,0 +1,37 @@
+# pgvector — PostgreSQL extension. e-commerce 의 기존 RDBMS 인프라에
+# 가장 매끄럽게 끼는 옵션이라 영업 비교 대상으로 가치 있음.
+# Phase 1.5 stub.
+
+name: pgvector
+impl: reco_bench.retrievers.pgvector:PgvectorRetriever
+category: vector_db_server
+
+device: cpu
+
+deployment:
+  mode: docker
+  docker_image: pgvector/pgvector:0.7.4-pg16
+  client_host: localhost
+  client_port: 5432
+  database: reco_bench
+  user: postgres
+
+build:
+  table_name: reco_bench_items
+  index_type: hnsw                         # hnsw | ivfflat
+  index_params:
+    m: 32
+    ef_construction: 200
+  metric: cosine                           # cosine | l2 | inner
+
+search:
+  ef_search_grid: [16, 32, 64, 128, 256, 512]
+
+sweep_axes:
+  m: [16, 32, 64]
+
+availability:
+  python_package: psycopg
+  install: "pip install psycopg pgvector"
+
+status: not_implemented_yet

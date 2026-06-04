@@ -1,0 +1,45 @@
+# Phase 1 full — 모든 retriever (ANN 라이브러리 + vector DB in-process) 비교.
+# 사용자 요구사항: reports/history/2026-06-04_user-requirements-clarified.md.
+
+experiment_id: phase1_full
+description: |
+  Phase 1 final. Two-tower 학습 후, 다음 retriever 모두 동일 frame 에서
+  Recall-QPS, latency, cost 비교:
+  - ANN 라이브러리: FAISS-CPU HNSW, cuVS IVF-PQ, cuVS CAGRA
+  - Vector DB (in-process): Milvus Lite, Qdrant Local
+  학습된 모델은 baseline_v0 의 checkpoint 를 사용.
+
+datasets:
+  - configs/datasets/ml25m.yaml
+  - configs/datasets/amazon_beauty.yaml
+
+# v0 모델 (logQ ON, temp 0.07, dim 128) 사용 — v1 이 더 떨어진 것을
+# reports/history/2026-06-04_v1-training-failure.md 에서 확인.
+model: configs/models/two_tower_base.yaml
+
+retrievers:
+  - configs/retrievers/faiss_hnsw_cpu.yaml
+  - configs/retrievers/cuvs_ivfpq.yaml
+  - configs/retrievers/cuvs_cagra.yaml
+  - configs/retrievers/milvus.yaml         # Milvus Lite (vector DB, in-process)
+  - configs/retrievers/qdrant.yaml         # Qdrant Local (vector DB, in-process)
+  - configs/retrievers/scann_cpu.yaml      # Google ScaNN (CPU, AVX2)
+
+evaluation:
+  ks: [10, 100]
+  latency:
+    mode: both
+    concurrencies: [1, 4, 16, 64]
+    warmup_queries: 200
+    min_measured_queries: 1000
+    min_measured_seconds: 2
+  power:
+    sample_interval_ms: 100
+    baseline_idle_seconds: 1
+
+cost_model: configs/cost_model.yaml
+
+reporting:
+  output_dir: results/phase1_full
+  generate_markdown: reports/baseline_results.md
+  generate_figures: reports/figures/

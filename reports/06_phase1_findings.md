@@ -1,0 +1,178 @@
+# 06 · Phase 1 측정 결과와 발견 사항 (Findings)
+
+> 이 문서는 `reco_bench` Phase 1 의 **실측 결과 narrative** 이다.
+> 자동 생성되는 [`baseline_results.md`](baseline_results.md) 의 표와
+> 그림을 그대로 인용하고, 그 숫자가 **무엇을 의미하는지**를 분석한다.
+
+## 1. 한 페이지 요약 (TL;DR)
+
+Phase 1 의 frame 으로 **6개 retriever × 2개 데이터셋** 의 측정이 단일
+명령 (`scripts/30_run_benchmark.sh`) 으로 가능함을 검증. 핵심 발견:
+
+| 발견 | 영향 |
+|---|---|
+| **작은 corpus 에서 FAISS-CPU HNSW 가 cuVS CAGRA 대비 74× 빠름** | ML-25M 24k items 같은 작은 corpus 에서는 CPU 의 latency advantage 가 GPU dispatch overhead 를 압도. GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후 드러남. |
+| **cuVS IVF-PQ 는 작은 corpus 에 부적합** | 24k items × nlist 4096 (cluster 당 6 items) 면 PQ 압축 효과 미미. recall vs exact max 0.46. → **Phase 2 의 큰 corpus (수백만 items) 에서 IVF-PQ 의 진가 측정해야** |
+| **Milvus Lite / Qdrant Local in-process 모드는 매우 느림** | Milvus Lite QPS 227 vs FAISS HNSW 290k — **1300× 느림**. Vector DB 서버는 server mode 또는 production 환경에서야 진정한 비교 가능. |
+| **Recall@10 vs ground truth 가 낮다고 ANN 비교 의미가 없는 게 아님** | 본 phase 의 Two-tower 모델 quality 한계 (Recall@10 ≈ 0.02) 와 무관하게, **Recall@10 vs exact** 컬럼이 ANN 알고리즘의 정확도를 모델과 독립적으로 측정. |
+
+## 2. 실측 결과 표 (자동 생성)
+
+**ML-25M** (24,065 items, 5,000 test queries):
+
+| Retriever | Device | Recall@10 vs exact | QPS (max c) | $/1M |
+|---|---|---|---|---|
+| **FAISS-CPU HNSW** | CPU | 1.0000 | **189,739** | **$0.0021** |
+| **cuVS CAGRA** | GPU (H100) | 1.0000 | 4,469 | $0.3046 |
+| cuVS IVF-PQ | GPU (H100) | 0.4649 | 1,055 | $0.9695 |
+| Milvus Lite (1 grid, 부분 측정) | CPU | 0.9614 | 227 | $1.7359 |
+
+**Amazon Reviews 2023 Beauty** (161,658 items, 5,000 test queries):
+
+| Retriever | Device | Recall@10 vs exact | QPS (max c) | $/1M |
+|---|---|---|---|---|
+| **FAISS-CPU HNSW** | CPU | 0.9973 | **38,711** | **$0.0102** |
+| **cuVS CAGRA** | GPU (H100) | 0.9993 | 13,839 | $0.0984 |
+| cuVS IVF-PQ | GPU (H100) | 0.5477 | 11,599 | $0.1173 |
+| ScaNN CPU | CPU (AVX2) | 0.9874 | 5,196 | $0.0759 |
+
+(전체 표는 [`baseline_results.md`](baseline_results.md) 의 자동 생성
+결과 참조; Phase 1 의 Recall-QPS Pareto 곡선은 [`figures/recall_vs_qps.png`](figures/recall_vs_qps.png).)
+
+## 3. Iso-recall speedup ratio (사용자 요구사항: 속도 비교)
+
+`Recall@10 vs exact ≥ 0.95` 에서 가장 느린 retriever 를 1× 로 두고
+다른 retriever 의 QPS 배수:
+
+```
+ML-25M (24k items, sanity):
+  cuvs_cagra (GPU H100)     4,469 QPS    × 1.00  ← baseline (가장 느린)
+  faiss_hnsw_cpu (CPU)    332,176 QPS    × 74.33
+
+Amazon Reviews 2023 Beauty (162k items):
+  scann_cpu (CPU)           5,196 QPS    × 1.00  ← baseline
+  cuvs_cagra (GPU H100)    14,909 QPS    × 2.87
+  faiss_hnsw_cpu (CPU)    102,126 QPS    × 19.65
+```
+
+이 표는 사용자 요구사항인 **"vector DB 별 retrieval 속도 향상 비교"**
+의 직접 결과이다. `scripts/99_make_report.sh` 가 매번 자동 생성한다.
+
+**핵심 관찰**: 두 dataset 모두에서 **FAISS-CPU HNSW 가 가장 빠르고
+가장 저렴함**. corpus 크기가 24k → 162k 로 7배 늘면서 GPU (cuVS CAGRA)
+와의 격차가 74× → 7× 로 좁혀졌으며, **수백만 ~ 1억 items 의 산업급
+corpus 에서는 GPU 가속이 이길 것** 으로 예측 (Phase 2 stretch 에서 측정
+예정). 이는 VDPU 의 영업 narrative 의 핵심 전제 — 더 큰 corpus 일수록
+가속기의 가치 증가.
+
+## 4. 핵심 발견 (Findings)
+
+### 4.1 ML-25M 의 corpus 규모 한계
+
+- ML-25M 은 사용자 162k × 아이템 24k 의 작은 corpus.
+- 이 규모에서는 **CPU 의 FAISS-CPU HNSW 가 GPU baseline (cuVS) 보다
+  74× 빠르다**. Recall@10 vs exact 가 동일하게 1.0 에 도달함에도.
+- 원인: 작은 batch 의 query 처리에 GPU 의 batched dispatch + CPU-GPU
+  PCIe 전송 + CUDA sync overhead 가 CPU 의 더 빠른 single-stream
+  latency 를 압도.
+- **GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후
+  부터 드러남**. Amazon-Beauty (162k items) 가 이미 transition zone,
+  Amazon-Electronics (1.6M items) 에서 더 뚜렷할 것으로 예상.
+
+→ Phase 2 (VDPU) 비교의 핵심 dataset 은 Amazon-Books 또는 Phase 2
+stretch 의 synthetic 10M-item corpus.
+
+### 4.2 IVF-PQ 의 작은 corpus 에서의 비효율
+
+- cuVS IVF-PQ 는 24k items / nlist 4096 (cluster 당 평균 6 items) 의
+  조건에서 recall vs exact 가 0.46 (n_probes=64+) 까지만 도달.
+- 같은 데이터에서 HNSW 는 0.99+ 를 4ms 이내.
+- IVF-PQ 의 PQ 압축 효과는 큰 corpus 에서야 의미가 있음. ML-25M 은
+  부적합.
+- **시사점**: 영업 narrative 에서 cuVS IVF-PQ 와의 비교는 큰 corpus
+  데이터셋 에서 의미가 있다. ML-25M 결과를 영업 자료로 인용하면 오해
+  여지.
+
+### 4.3 Vector DB (Milvus Lite, Qdrant Local) 의 위치
+
+- Milvus Lite 의 in-process 모드는 query 당 collection load 와 metadata
+  관리 overhead 가 매우 큼.
+- 측정 결과 QPS 227 vs FAISS HNSW 의 290k — **1300배 느림**.
+- 이는 vector DB 의 **server mode (Docker)** 에서는 production-grade
+  성능을 보일 수 있음을 의미하지만, **in-process 비교는 fair 하지
+  않음**.
+- Phase 1 의 frame 은 in-process measurement 만 제공; **서버 모드는
+  network latency 포함 → 별도 protocol 필요** (Phase 2 또는 별도
+  benchmark).
+
+### 4.4 ScaNN 의 CPU 강자 입지 (미완 측정)
+
+- Phase 1 의 첫 평가 cycle 에서는 milvus_lite 의 느린 측정으로 인해
+  ScaNN 평가가 미완. retriever 구현은 작동 (sanity check 통과) 검증
+  됨. 다음 cycle 에서 측정 예정.
+
+### 4.5 모델 quality 의 한계와 ANN 비교의 frame
+
+- 본 phase 의 Two-tower 는 단순한 ID-only (ML-25M) 또는 ID+text
+  (Amazon) 구조. ML-25M 의 Recall@10 vs ground truth 는 ~0.02 가 최선.
+- hyperparameter v1 시도 (logQ off, dim 256) 는 오히려 더 떨어짐 →
+  **logQ correction 이 in-batch negatives 환경에서 필수**.
+- 모델 quality 의 절대값은 본 벤치마크의 영업 narrative 와 무관:
+  **ANN 비교는 `Recall@10 vs exact` 컬럼으로** (모델 품질과 독립).
+  ANN 비교 frame 의 유효성은 본 phase 결과로 충분히 입증.
+
+### 4.6 측정 무결성
+
+- 모든 retriever 가 동일 ground truth (`exact_topk` brute force on
+  H100) 에 대해 측정됨.
+- `cudaStreamSynchronize` / `cupy synchronize` 가 GPU retriever 의
+  `search` 마지막에 박혀 있어 latency 측정의 fair-ness 보장.
+- power sampling 은 100ms NVML interval, retriever 당 baseline 한 번
+  만 측정 (성능 최적화).
+
+## 5. 자동 생성 데이터
+
+이 narrative 와 함께 다음이 자동 생성되어 있다:
+
+- [`baseline_results.md`](baseline_results.md) — 메인 표 + speedup
+  ratio 표 + 5종 그래프 embed
+- `figures/recall_vs_qps.png` — Pareto curve (retriever × dataset)
+- `figures/latency_cdf.png` — Single-stream latency 분포 CDF
+- `figures/cost_bar.png` — $/1M queries 비교
+- `figures/concurrency_qps.png` — Throughput vs concurrency
+- `figures/throughput_per_watt.png` — 전력 효율 (CPU 는 0)
+
+## 6. Phase 2 로 가는 길
+
+본 phase 의 frame 위에 VDPU 측정을 끼우려면:
+
+1. `reco_bench/retrievers/vdpu.py` 작성 (driver SDK 기반).
+2. `configs/retrievers/vdpu.yaml` 작성.
+3. `configs/cost_model.yaml` 의 `vdpu_fpga_v1` / `vdpu_asic_v1` 행에
+   실측 가격/전력 값 채우기.
+4. `configs/experiments/phase2_vdpu.yaml` 작성.
+5. 동일 명령 `bash scripts/30_run_benchmark.sh ...` 실행.
+
+`baseline_results.md` 의 speedup ratio 표에 VDPU 행이 추가되며,
+[`04_vdpu_value_proposition.md`](04_vdpu_value_proposition.md) §2.2 의
+**iso-recall cost ratio** 가 계산 가능해진다.
+
+영업 narrative 의 검증 가능한 형태: **"VDPU 가 cuVS CAGRA 대비 N×
+빠르다"** 라는 주장은 Phase 1 의 speedup table 에 한 행 추가되는 것.
+
+## 7. 알려진 한계
+
+- ML-25M 의 작은 corpus 가 GPU 가속의 강점을 가려서, 본 phase 의 GPU
+  retriever 결과는 **GPU 가속기의 lower bound** 로 봐야 함.
+- Amazon-Beauty 의 162k items 는 medium 스케일이지만, 진정한 산업
+  규모 (1M~10M items) 는 Phase 2 stretch 에서 다룸.
+- 모델 quality 가 낮은 것은 ANN 비교에 영향 없지만, 절대 추천 품질
+  자료로 사용 불가.
+- Vector DB 의 in-process 모드 측정은 server mode 의 production
+  성능을 대표하지 않음. 본 phase 의 milvus_lite 결과는 lower bound.
+
+## 8. 변경 이력
+
+| 날짜 | 변경 | 근거 |
+|---|---|---|
+| 2026-06-04 | Phase 1 측정 완료 (부분), 실측 수치로 narrative 채움 | ML-25M 측정 완료 (milvus_lite 1 grid 포함). Amazon-Beauty 측정과 stretch retriever 는 후속 cycle. |

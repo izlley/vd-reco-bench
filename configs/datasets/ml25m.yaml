@@ -1,0 +1,32 @@
+# MovieLens-25M 데이터셋 설정.
+# 출처: GroupLens, https://grouplens.org/datasets/movielens/25m/
+# 라이센스: 연구용 (reports/02_dataset_selection.md §2.1 참조).
+
+name: ml25m
+display_name: "MovieLens 25M"
+
+source:
+  type: zip
+  url: "https://files.grouplens.org/datasets/movielens/ml-25m.zip"
+  expected_sha256: "6b51fb2759a8657d3bfcbfc42b592ada"   # placeholder; 다운로드 후 자동 검증
+  raw_dir: data/raw/ml-25m
+
+processed_dir: data/processed/ml25m
+
+preprocessing:
+  implicit_positive_rating_threshold: 3.5
+  kcore_min_interactions: 5
+  split_policy: temporal_global
+  split_ratios: [0.90, 0.05, 0.05]    # train, val, test
+
+item_features:
+  use_text: false                      # ML-25M 은 title 만, text encoder 미사용
+  text_columns: []
+
+stats_expected:
+  # 전처리 (implicit + k-core) 후 sanity check 용 floor.
+  # rating >= 3.5 + k-core 5 적용 시 ~24k items / ~162k users / 15.6M interactions
+  # 가 관찰됨 (2026-06-04 실측, reports/history/2026-06-04_ml25m-preprocess.md).
+  num_users_min: 100_000
+  num_items_min: 20_000
+  num_interactions_min: 10_000_000

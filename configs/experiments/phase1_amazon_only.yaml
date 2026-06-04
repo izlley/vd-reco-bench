@@ -1,0 +1,29 @@
+# Phase 1 - Amazon Beauty 만 학습 (ML-25M 은 phase1_baseline_v0 의 ckpt 재사용).
+# phase1_full 의 평가 단계에서 둘 다 사용.
+experiment_id: phase1_full
+description: |
+  Amazon Beauty 의 Two-tower 학습만 실행.
+
+datasets:
+  - configs/datasets/amazon_beauty.yaml
+
+model: configs/models/two_tower_base.yaml
+
+retrievers: []
+
+evaluation:
+  ks: [10, 100]
+  latency:
+    mode: both
+    concurrencies: [1, 4, 16, 64]
+    warmup_queries: 1000
+    min_measured_queries: 10000
+    min_measured_seconds: 30
+  power:
+    sample_interval_ms: 100
+    baseline_idle_seconds: 5
+
+cost_model: configs/cost_model.yaml
+
+reporting:
+  output_dir: results/phase1_full

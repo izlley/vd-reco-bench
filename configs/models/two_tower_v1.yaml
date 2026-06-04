@@ -1,0 +1,49 @@
+# Two-tower 모델 v1 — Phase 1 baseline 의 quality 부족 (Recall@100=0.18)
+# 을 개선하기 위한 hyperparameter 조정.
+# 변경 사항 vs two_tower_base.yaml:
+# 1. embed_dim_out: 128 → 256 (capacity 증가)
+# 2. mlp_hidden: 256 → 512
+# 3. batch_size: 4096 → 8192 (in-batch negatives 다양성 증가)
+# 4. temperature: 0.07 → 0.1 (덜 sharp)
+# 5. logq_correction: true → false (작은 corpus 에서 학습 신호 약화 회피)
+# 6. max_epochs: 10 → 20
+
+name: two_tower_v1
+
+architecture:
+  embed_dim_id: 64
+  embed_dim_out: 256
+  mlp_hidden: 512
+  recent_n: 50
+  l2_normalize: true
+  share_item_embedding: true
+
+loss:
+  type: sampled_softmax_in_batch_neg_with_logq
+  temperature: 0.1
+  logq_correction: false
+  logq_sketch_size: 1048576
+
+optimizer:
+  type: adamw
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+
+scheduler:
+  type: cosine
+  warmup_steps: 1000
+
+training:
+  batch_size: 8192
+  max_epochs: 20
+  early_stop_metric: recall_at_100
+  early_stop_patience_epochs: 4
+  precision: bf16
+  grad_clip_norm: 1.0
+  num_workers: 8
+  seed: 42
+
+eval:
+  val_ks: [10, 100]
+  val_metric_for_early_stop: recall_at_100

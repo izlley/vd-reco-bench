@@ -1,0 +1,27 @@
+# Milvus Lite — 오픈소스 vector DB 의 in-process 구현.
+# pymilvus 의 MilvusClient(uri="<db file>") 모드.
+# 결정 근거: reports/history/2026-06-04_user-requirements-clarified.md (Phase 1.5).
+
+name: milvus_lite
+impl: reco_bench.retrievers.milvus_lite:MilvusLite
+category: vector_db_server
+
+device: cpu
+
+deployment:
+  mode: lite
+
+build:
+  collection_name: reco_bench
+  index_type: FLAT                         # Milvus Lite default; HNSW 는 추후 (server mode)
+  index_params:
+    M: 32
+    efConstruction: 200
+  metric_type: IP
+
+search:
+  ef_grid: [16, 32, 64, 128, 256, 512]    # FLAT 에서는 무시되지만 grid 포맷 호환
+
+availability:
+  python_package: pymilvus
+  install: "pip install pymilvus"

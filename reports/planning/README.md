@@ -1,0 +1,26 @@
+# reports/planning/
+
+이 디렉토리는 `reco_bench` 개발 과정에서 생성된 **중간 설계/의사결정
+산출물** 을 보관한다. `reports/history/` 가 *언제, 무엇을, 왜* 했는지를
+시간순 로그 형태로 기록한다면, 이 디렉토리는 그 의사결정을 이끌어낸
+**제안 문서 자체** 를 담는다. 승인된 plan, RFC 성 설계 노트, 대안 비교
+조사 등이 여기에 들어간다.
+
+두 디렉토리를 함께 보면, 외부 reader 는 최종 벤치마크 형태뿐만 아니라
+**그 형태에 어떻게 도달했는지** 까지 재구성할 수 있다.
+
+## 명명 규칙
+
+`YYYY-MM-DD_<short-slug>.md`
+
+각 파일은 최소한 상단에 상태 배너를 둔다:
+
+```markdown
+> **상태:** {draft | approved | superseded by ...} ({날짜})
+```
+
+## 현재 보관 문서
+
+| 파일 | 상태 | 요약 |
+|---|---|---|
+| `2026-05-20_phase0-plan.md` | approved (2026-05-20) | 초기 Phase 0+1 계획. Two-tower retrieval 의 GPU baseline 벤치마크 구축. MovieLens-25M + Amazon Reviews 2023. FAISS-GPU / cuVS / ScaNN 비교 프레임. VDPU 는 향후 `Retriever` 플러그인으로 끼울 수 있도록 abstraction 설계. |

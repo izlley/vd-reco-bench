@@ -1,0 +1,35 @@
+# Amazon Reviews 2023 — Beauty_and_Personal_Care 카테고리.
+# 출처: McAuley Lab UCSD, https://amazon-reviews-2023.github.io/
+# HuggingFace: McAuley-Lab/Amazon-Reviews-2023
+# 라이센스: 연구용 + attribution (reports/02_dataset_selection.md §2.2).
+
+name: amazon_beauty
+display_name: "Amazon Reviews 2023 — Beauty"
+
+source:
+  type: huggingface
+  hub_repo: "McAuley-Lab/Amazon-Reviews-2023"
+  config_review: "raw_review_Beauty_and_Personal_Care"
+  config_meta: "raw_meta_Beauty_and_Personal_Care"
+  raw_dir: data/raw/amazon-2023/Beauty_and_Personal_Care
+
+processed_dir: data/processed/amazon_beauty
+
+preprocessing:
+  implicit_positive_rating_threshold: 4.0
+  kcore_min_interactions: 5
+  split_policy: temporal_global
+  split_ratios: [0.90, 0.05, 0.05]
+
+item_features:
+  use_text: true
+  text_columns: [title, brand, features]
+  text_max_chars: 256
+  text_encoder: "sentence-transformers/all-MiniLM-L6-v2"
+  text_encoder_dim: 384
+  freeze_text_encoder: true
+
+stats_expected:
+  num_users_min: 1_000_000
+  num_items_min: 50_000
+  num_interactions_min: 5_000_000

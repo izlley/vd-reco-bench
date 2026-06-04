@@ -1,0 +1,96 @@
+---
+date: 2026-06-04
+phase: 1
+topic: user-requirements-clarified
+status: completed
+---
+
+# 사용자 요구사항 명시적 정의 + Vector DB 비교 frame 추가
+
+## What changed
+
+사용자가 본 프로젝트의 목표를 다음과 같이 재확인:
+
+> 본 커머셜 추천 벤치마크 프로젝트의 목표는 우리가 만든 벡터디비
+> 가속기 (VDPU) 를 사용했을 때 **일반적인 오픈소스 벡터디비나 라이브
+> 러리를 사용했을 때 보다 더 높은 성능을 달성할 수 있느냐** 입니다.
+>
+> 1. 오픈소스 벤치마크를 참조하여 framework 개발
+> 2. 쉽게 계산, 성능측정, 성능비교가 가능해야 함
+> 3. 시각화 + 리포트 자동 생성
+> 4. 여러 벡터디비를 쉽게 추가해서 벤치마크 계산 가능
+> 5. 적절한 baseline 성능 지표 선정
+
+다음을 본 entry 에서 명문화하고 후속 단계에 반영:
+
+- **비교 대상은 두 카테고리**:
+  - **카테고리 A — ANN 라이브러리** (in-process): FAISS-CPU HNSW,
+    cuVS IVF-PQ, cuVS CAGRA, ScaNN. (Phase 1 의 현재 범위.)
+  - **카테고리 B — 오픈소스 Vector DB 서버** (client/server):
+    Milvus, Qdrant, Weaviate, pgvector 등. (Phase 1.5 로 추가 — 본
+    entry 에서 새로 명문화된 phase.)
+- **`Retriever` 추상 클래스의 contract 가 두 카테고리 모두 수용**:
+  client/server vector DB 도 build = (collection 생성 + insert),
+  search = (client.search) 형태로 동일 인터페이스 안에 들어간다.
+  추가 시 새 파일 (`reco_bench/retrievers/<name>.py`) + YAML 한 개 +
+  cost_model 한 행이면 끝. **VDPU integration 의 seam 과 정확히
+  동일.**
+- **시각화의 명시적 산출물 목록** (Phase 1 Step 8 의 DoD):
+  1. Recall-QPS Pareto 곡선 (메인 차트, retriever × dataset).
+  2. Latency CDF (P50/P95/P99 시각).
+  3. $/1M queries 막대 그래프 (iso-recall 0.95).
+  4. Recall-vs-corpus-size scaling 그래프.
+  5. Throughput-per-Watt 그래프 (Phase 2 부터 신뢰 가능).
+- **"단일 명령으로 전체 비교"** 보장:
+  `bash scripts/30_run_benchmark.sh configs/experiments/phase1_baseline.yaml`
+  한 번에 모든 retriever × 모든 dataset × 모든 param grid 의 측정이
+  완료되고, `bash scripts/99_make_report.sh` 한 번에 위 5종 시각화 +
+  markdown 리포트가 재생성되어야 한다.
+
+## Why
+
+사용자가 강조한 요구사항 중 **현재 설계와 일치하는 것** 과 **추가/강화
+필요한 것** 을 분리:
+
+| 요구 | 현재 설계 | 추가 필요? |
+|---|---|---|
+| 오픈소스 벤치마크 참조 | ann-benchmarks, VectorDBBench, MLPerf DLRM 참조 명시 (`reports/00_overview.md` §2) | ✓ 완료 |
+| 쉬운 계산/비교 | `scripts/00_~99_` 단일 명령 파이프라인 | ✓ 의도 (Phase 1 Step 4~8 에서 구현) |
+| 시각화 + 리포트 | `reports/figures/` + `baseline_results.md` 자동 생성 | ✓ 의도, **5종 그래프를 본 entry 에서 명시화** |
+| 여러 vector DB 쉽게 추가 | `Retriever` 추상 클래스 + retriever YAML | **부분** — ANN 라이브러리는 다뤘으나 vector DB **서버** 가 빠져 있었음. 본 entry 에서 Phase 1.5 로 추가. |
+| 적절한 baseline | FAISS-CPU HNSW + cuVS IVF-PQ + cuVS CAGRA | ✓, Vector DB 추가 후 더 풍부 |
+
+**Phase 1.5 의 명확화**: Phase 1 의 ANN 라이브러리 baseline 이 완성된
+직후, VDPU 측정 (Phase 2) 전에 Milvus / Qdrant 같은 vector DB 서버를
+같은 frame 으로 측정한다. 이게 **"VDPU 가 시장의 vector DB 보다 빠른가"**
+라는 사용자의 핵심 영업 질문에 직접 답한다.
+
+## Validation
+
+- 본 entry 가 정의한 **5종 그래프 + 단일 명령 보장** 은 Phase 1 의
+  Step 4~8 DoD 에 박혀 있다. Step 8 종료 시 위 5종이 자동 생성되지
+  않으면 Step 8 완료로 보지 않음.
+- **Vector DB retriever skeleton** (Milvus, Qdrant 의 YAML 과 빈
+  retriever class 파일) 을 본 entry 와 함께 추가하여, 후속 코드가
+  들어올 자리만 표시.
+- `reports/00_overview.md`, `reports/03_baseline_methodology.md`,
+  `reports/04_vdpu_value_proposition.md` 에 본 카테고리 A/B 분류를
+  반영.
+
+## Open questions / next
+
+- **Vector DB 별 측정 방식**:
+  - **Embedded mode** (in-process Python binding) 가 가능한 DB
+    (Milvus Lite, pgvector via SQLite/duckdb) 는 그대로 retriever
+    class 안에서 작동.
+  - **Server mode** (gRPC/HTTP) DB 는 별도 Docker compose 가 필요.
+    `scripts/` 에 `start_vector_db.sh` / `stop_vector_db.sh` 추가
+    필요. 측정 시 network latency 가 포함되므로 **iso-recall 비교의
+    fairness 정의** 가 별도 문서로 필요 (
+    `reports/06_vector_db_comparison_protocol.md`, 작성 예정).
+- **VDPU 의 시장 위치**: 단순 ANN 라이브러리 (in-process) vs Vector DB
+  서버 (network-bound) 의 중간에 위치. 영업 narrative 에서 어느 쪽과
+  비교해야 더 강한지 결정 필요. 본 벤치마크는 두 쪽 모두 보고하고,
+  reader 가 자기 환경에 맞는 비교를 고를 수 있게 한다.
+- 다음 = ML-25M 학습 실 실행 + Step 4 (cuVS IVF-PQ retriever) 구현
+  병렬 진행.

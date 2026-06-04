@@ -1,0 +1,26 @@
+experiment_id: phase1_full
+description: Amazon Beauty 만 평가 (ML-25M 은 이미 별도 완료)
+datasets:
+  - configs/datasets/amazon_beauty.yaml
+model: configs/models/two_tower_base.yaml
+retrievers:
+  - configs/retrievers/faiss_hnsw_cpu.yaml
+  - configs/retrievers/cuvs_ivfpq.yaml
+  - configs/retrievers/cuvs_cagra.yaml
+  - configs/retrievers/scann_cpu.yaml
+evaluation:
+  ks: [10, 100]
+  latency:
+    mode: both
+    concurrencies: [1, 4, 16, 64]
+    warmup_queries: 200
+    min_measured_queries: 1000
+    min_measured_seconds: 2
+  power:
+    sample_interval_ms: 100
+    baseline_idle_seconds: 1
+cost_model: configs/cost_model.yaml
+reporting:
+  output_dir: results/phase1_amazon
+  generate_markdown: reports/baseline_results.md
+  generate_figures: reports/figures/

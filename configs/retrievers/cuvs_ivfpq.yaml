@@ -1,0 +1,25 @@
+# cuVS IVF-PQ (GPU) — GPU baseline 의 메모리 효율 측.
+# faiss-gpu 는 PyTorch 와 cublas ABI 충돌이 발생해 사용 불가했고, cuVS
+# 가 동일한 IVF-PQ 알고리즘을 stable 한 form 으로 제공한다 (cuVS 26.04).
+# 결정 근거: reports/history/2026-06-04_env-setup.md.
+
+name: cuvs_ivfpq
+impl: reco_bench.retrievers.cuvs_ivfpq:CuvsIvfPq
+
+device: cuda
+
+build:
+  n_lists: 4096
+  pq_dim: 16                          # PQ subquantizer 수 (dim=128 → 8-dim subvector)
+  pq_bits: 8                          # subquantizer 당 비트 수
+  add_data_on_build: true
+  metric: inner_product
+  kmeans_n_iters: 20
+  kmeans_trainset_fraction: 0.5
+
+search:
+  n_probes_grid: [1, 4, 16, 64, 256]
+  lut_dtype: cuda_r_32f               # f16/f32/f8; f32 가 default, f8 은 빠르지만 recall 손해
+
+sweep_axes:
+  n_lists: [1024, 4096, 16384]

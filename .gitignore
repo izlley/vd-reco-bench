@@ -1,0 +1,35 @@
+# Datasets — raw and processed must never be committed (license: research-only)
+data/raw/
+data/processed/
+
+# Model artifacts, indexes, run outputs
+checkpoints/
+indexes/
+results/
+logs/*.log
+
+# Auto-generated figures live in reports/figures/ but the bitmap binaries are not commit-friendly.
+# Keep the directory but ignore the bitmaps; regenerate with `scripts/99_make_report.sh`.
+reports/figures/*.png
+reports/figures/*.pdf
+
+# Auto-generated aggregate report
+reports/baseline_results.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+.venv/
+venv/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

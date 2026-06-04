@@ -1,0 +1,41 @@
+# Phase 1 의 baseline 실험 정의.
+# scripts/10_train_two_tower.sh, scripts/20_build_index.sh,
+# scripts/30_run_benchmark.sh 가 본 파일을 인자로 받는다.
+
+experiment_id: phase1_baseline_v0
+description: |
+  Phase 1 의 첫 baseline. MovieLens-25M 과 Amazon-Beauty 에 대해
+  Two-tower 학습 → FAISS-CPU HNSW + FAISS-GPU IVF-PQ + cuVS CAGRA 의
+  세 retriever 로 Recall-QPS 곡선 측정.
+  ScaNN 은 stretch (환경에 따라 skip).
+
+datasets:
+  - configs/datasets/ml25m.yaml
+  - configs/datasets/amazon_beauty.yaml
+
+model: configs/models/two_tower_base.yaml
+
+retrievers:
+  - configs/retrievers/faiss_hnsw_cpu.yaml
+  - configs/retrievers/cuvs_ivfpq.yaml
+  - configs/retrievers/cuvs_cagra.yaml
+  # - configs/retrievers/scann_cpu.yaml   # stretch
+
+evaluation:
+  ks: [10, 100]
+  latency:
+    mode: both                         # single_stream + max_throughput
+    concurrencies: [1, 4, 16, 64]
+    warmup_queries: 1000
+    min_measured_queries: 10000
+    min_measured_seconds: 30
+  power:
+    sample_interval_ms: 100
+    baseline_idle_seconds: 5
+
+cost_model: configs/cost_model.yaml
+
+reporting:
+  output_dir: results/phase1_baseline_v0
+  generate_markdown: reports/baseline_results.md
+  generate_figures: reports/figures/

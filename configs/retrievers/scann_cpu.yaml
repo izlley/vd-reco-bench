@@ -1,0 +1,26 @@
+# Google ScaNN — CPU 강자. AVX2 gated, Phase 1 stretch goal.
+# reports/03_baseline_methodology.md §3 참조.
+
+name: scann_cpu
+impl: reco_bench.retrievers.scann_cpu:ScannCpu
+
+device: cpu
+
+build:
+  num_leaves: 2000
+  num_leaves_to_search_default: 100
+  reordering_num_neighbors: 500
+  dimensions_per_block: 2
+  anisotropic_quantization_threshold: 0.2
+  metric: dot_product
+
+search:
+  leaves_to_search_grid: [25, 50, 100, 200, 500]
+  pre_reorder_num_neighbors_grid: [100, 500, 2000]
+
+sweep_axes:
+  num_leaves: [1024, 4096]
+
+availability:
+  requires_avx2: true
+  platforms: [linux_x86_64]

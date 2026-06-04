@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reco_bench"
+version = "0.0.1"
+description = "Two-tower recommender benchmark for vector-DB accelerators (VDPU value-proposition harness)."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Dnotitia, Inc." }]
+keywords = ["recommender", "two-tower", "ANN", "benchmark", "vector-database", "VDPU"]
+
+[tool.setuptools.packages.find]
+include = ["reco_bench*"]
+exclude = ["tests*", "data*", "results*", "indexes*", "checkpoints*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"

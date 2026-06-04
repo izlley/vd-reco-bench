@@ -1,0 +1,18 @@
+# FAISS HNSW (CPU) — CPU baseline 표준.
+# reports/03_baseline_methodology.md §3 참조.
+
+name: faiss_hnsw_cpu
+impl: reco_bench.retrievers.faiss_cpu:FaissHnswCpu
+
+device: cpu
+
+build:
+  M: 32                                # default; param sweep 은 experiments/*.yaml 에서 override
+  efConstruction: 200
+  metric: inner_product
+
+search:
+  efSearch_grid: [16, 32, 64, 128, 256, 512]
+
+sweep_axes:
+  M: [16, 32, 64]
