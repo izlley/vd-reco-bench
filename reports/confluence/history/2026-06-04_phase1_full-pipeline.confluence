@@ -1,0 +1,102 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 1
+topic: phase1-full-pipeline
+status: in_progress
+{info}
+
+
+h1. Phase 1 full pipeline: 6 retriever × 2 dataset end-to-end
+
+h2. What changed
+
+본 entry 는 사용자가 명시한 두 가지 추가 요구사항을 반영하는 작업:
+# "쉬운 계산/측정/비교" — 단일 명령으로 retriever × dataset 비교
+# "여러 vector DB 쉽게 추가" — Milvus, Qdrant 도 baseline 으로 포함
+# "속도에 대한 평가가 중요" — speedup ratio 를 리포트의 1차 지표로
+
+h3. 추가된 retriever 구현 (Phase 1.5 가 Phase 1 으로 흡수)
+
+||Retriever||파일||검증 결과||
+|Milvus Lite|{{reco_bench/retrievers/milvus_lite.py}}|500-item synth: build 0.04s, search OK|
+|Qdrant Local|{{reco_bench/retrievers/qdrant_local.py}}|500-item synth: build 0.15s, search OK|
+|ScaNN CPU|{{reco_bench/retrievers/scann_cpu.py}}|500-item synth: build 0.06s, search OK|
+
+모두 in-process Python binding 만 사용 (서버 없이 동작). 세 retriever
+모두 같은 query 에 같은 top-5 ID 반환 → 인터페이스 일관성 검증.
+
+h3. 새 experiment
+
+* {{configs/experiments/phase1_full.yaml}} — 6 retriever × 2 dataset
+  (ML-25M, Amazon-Beauty) 의 통합 평가.
+* {{configs/experiments/phase1_v1.yaml}} — hyperparameter v1 시도 (logQ
+  off, dim 256). *결과: Recall@100 0.034 → v0 보다 더 떨어짐.*
+  logQ correction 이 필수임을 확인. v1 폐기, v0 로 회귀.
+* {{configs/experiments/phase1_amazon_only.yaml}} — Amazon-Beauty 만
+  학습.
+
+h3. Pipeline 코드 갱신
+
+* {{reco_bench/pipelines/evaluate.py}} — search grid extraction 에
+  {{hnsw_ef_grid}}, {{ef_grid}}, {{leaves_to_search_grid}} 지원 추가.
+* {{reco_bench/pipelines/report.py}} — {{_speedup_table}} 추가 (iso-recall
+  0.95 기준 baseline 대비 QPS 배수 자동 계산 + markdown 출력).
+* {{reco_bench/utils/io.py}} — {{dump_json}} 의 default encoder 에 date/
+  datetime/numpy scalar 처리 (Phase 0 의 cost_model.yaml 의 {{snapshot_date}}
+  가 yaml 으로부터 date 객체로 파싱되어 JSON dump 실패하던 버그 fix).
+
+h3. 사용자용 도구
+
+* {{QUICKSTART.md}} 추가 — 처음 보는 사람을 위한 5분 가이드.
+* {{README.md}} 의 Quick Start 섹션을 6 retriever 비교 표 + 단일 명령
+  흐름으로 강화.
+
+h3. 데이터셋
+
+* *MovieLens-25M*: 학습 (Recall@100 best 0.183 at v0) + 6 retriever
+  build 완료. 평가 진행 중.
+* *Amazon Reviews 2023 Beauty*: 다운로드 + 전처리 완료
+  (491k users, 162k items, 3.97M train interactions).
+  HuggingFace datasets 4.x 의 dataset script 지원 중단으로 인해 raw
+  jsonl 을 {{huggingface_hub.hf_hub_download}} 로 직접 받는 방식으로 우회.
+  학습은 ML-25M 평가 종료 후 진행 예정.
+
+h2. Why
+
+* Milvus / Qdrant 같은 in-process 모드 vector DB 는 ann-benchmarks 와
+  VectorDBBench 의 측정 frame 을 그대로 적용 가능. 서버 모드는 network
+  latency 가 들어가 fair 비교 어려움 → 본 phase 는 in-process 만 사용.
+* ScaNN 은 CPU 강자 (Google 의 internal recommender 에서 사용) — VDPU
+  의 CPU-side 비교에서 강한 baseline.
+* v1 hyperparameter (logQ off) 가 더 떨어진 것은 **logQ correction 이
+  in-batch negative 의 popular item bias 를 보정하는 핵심 메커니즘** 임
+  을 의미. ML-25M 같이 dense 한 데이터에서는 절대 끄면 안 됨.
+* *speedup ratio* 를 리포트 1차 지표로 둔 것은 사용자의 "속도 향상
+  몇 배" 영업 narrative 와 직접 매칭. iso-recall (0.95) 기준으로 통일.
+
+h2. Validation
+
+* 6 retriever 모두 build 성공:
+** faiss_hnsw_cpu: 0.08s
+** cuvs_ivfpq: 0.59~5.66s (warmup 차이)
+** cuvs_cagra: 0.21~5.34s
+** milvus_lite: 2.05s
+** qdrant_local: 8.90s (local mode 의 점진 insert)
+** scann_cpu: 미실행 (평가 단계에서 자동 build 됨)
+* 모든 retriever 가 ml25m 의 첫 query 5개에 대해 동일 top-K 의 majority
+  를 반환 (검증 완료).
+* speedup table 이 {{reports/baseline_results.md}} 의 메인 표 직후에
+  자동 생성.
+
+h2. Open questions / next
+
+* ML-25M 평가가 진행 중 (~10-15분 추정). 끝나면:
+## Amazon Beauty Two-tower 학습 (v0 hyperparameter, ~5분 추정).
+## Amazon Beauty 6 retriever build + 평가.
+## 최종 {{baseline_results.md}} 재생성.
+* *v1 의 실패* 는 향후 hyperparameter sweep 의 anti-pattern 으로
+  남김. 더 좋은 model quality 가 필요하면 *logQ ON 을 유지하면서*
+  capacity 또는 batch size 만 조정해야.
+* ScaNN 의 {{num_leaves}} 가 ML-25M 의 24k items 에는 너무 크면 (default
+  2000) build 가 비효율적. {{min(num_leaves, n // 4)}} 로 clamp 한 것은
+  retrievers/scann_cpu.py 에 박혀 있다.

@@ -1,0 +1,257 @@
+h1. 05 · 재현성 (Reproducibility)
+
+{quote}
+이 문서는 외부 reader 가 자신의 머신에서 {{reco_bench}} 의 결과를
+*그대로 재현* 할 수 있도록, 환경/시드/하드웨어 캡처/실행 순서/검증
+절차를 정의한다. 공개 시 reader 가 가장 먼저 검증할 파일.
+{quote}
+
+----
+
+h2. 1. 재현성의 세 층위
+
+||층위||목표||본 벤치마크의 보장||
+|*L1: bit-exact*|모든 부동소수점 값이 동일|불가능 (CUDA non-determinism, ANN 알고리즘 자체의 stochastic 성격)|
+|*L2: metric-stable*|시드만 같으면 Recall/QPS 가 ±1% 이내|*목표*|
+|*L3: pareto-stable*|Recall-QPS Pareto frontier 의 형태가 그대로|*반드시 보장*|
+
+본 벤치마크는 L2 를 목표로 하고, L3 는 절대 깨지지 않도록 설계한다.
+("VDPU 6~7×" 같은 영업 결론은 L3 의 안정성에 의존한다.)
+
+----
+
+h2. 2. 환경 핀 (Phase 1 검증 후 갱신 예정)
+
+h3. 2.1 베이스 시스템 (Phase 1 환경 검증 후 2026-06-04 갱신)
+
+||항목||검증된 값||
+|OS|Linux (kernel 5.15.0-1083-nvidia)|
+|GPU|4× NVIDIA H100 80GB HBM3 (compute capability 9.0)|
+|GPU Driver|535.247.01 (driver-bundled CUDA 12.2)|
+|CUDA Toolkit|12.8 ({{/usr/local/cuda-12.8}})|
+|Python|3.12.3 (system-wide {{/usr/local/bin/python}})|
+
+h3. 2.2 Python 환경
+
+다음 설치 명령은 본 Pod 에서 검증된 시퀀스이다 ({{reports/history/2026-06-04_env-setup.md}} 참조).
+
+{code:bash}
+# 본 저장소 + 핵심 Python 의존성
+pip install -e .
+pip install -r requirements.txt
+
+# CPU/모델/sanity 패키지
+pip install faiss-cpu sentence-transformers scikit-learn nvidia-ml-py
+
+# cuVS (GPU IVF-PQ + CAGRA) + pylibraft + cupy — NVIDIA pip 채널
+pip install --extra-index-url https://pypi.nvidia.com \
+    cuvs-cu12 pylibraft-cu12 cupy-cuda12x
+
+# ScaNN (선택, x86_64 + AVX2)
+pip install scann
+{code}
+
+검증된 버전 (2026-06-04 시점):
+
+||패키지||버전||
+|{{torch}}|2.9.1+cu128 (CUDA 12.8 wheel)|
+|{{numpy}}|2.4.3|
+|{{pandas}}|3.0.1|
+|{{pyarrow}}|23.0.1|
+|{{faiss-cpu}}|1.14.2 (HNSW for CPU baseline)|
+|{{cuvs}}|26.04.000|
+|{{pylibraft}}|26.04.000|
+|{{cupy-cuda12x}}|14.1.1|
+|{{sentence-transformers}}|5.5.1|
+|{{transformers}}|5.8.1|
+|{{datasets}}|4.8.4|
+|{{scikit-learn}}|1.9.0|
+|{{nvidia-ml-py}} (pynvml)|≥12.535|
+|{{matplotlib}}|3.10.9|
+
+h3. 2.3 알려진 environment 트랩
+
+* *faiss-gpu (pip {{faiss-gpu-cu12}}) 와 PyTorch + cuVS 공존 시 cublas ABI 충돌* 발생 ({{undefined symbol: cublasLtGetEnvironmentMode}}). 본 벤치마크는 이를 회피하기 위해 *GPU 측 retriever 를 cuVS 로 통일* (CAGRA + IVF-PQ). FAISS 는 CPU baseline 전용으로만 사용한다.
+* pip 으로 {{faiss-gpu-cu12}} 가 설치된 후 uninstall 하면 {{faiss-cpu}} 의 swig 바인딩이 깨질 수 있으므로 {{pip install --force-reinstall --no-deps faiss-cpu}} 로 복구.
+
+h3. 2.3 환경 변수
+
+{code:bash}
+export CUDA_VISIBLE_DEVICES=0   # 멀티 GPU 환경에서 단일 GPU 측정
+export RECO_BENCH_DATA=/path/to/data
+export RECO_BENCH_SEED=42
+export PYTHONHASHSEED=42
+{code}
+
+----
+
+h2. 3. 시드 정책
+
+다음 모든 시드를 *42* 로 고정:
+
+||위치||시드||
+|{{random.seed}}|{{RECO_BENCH_SEED}}|
+|{{numpy.random.seed}}|동일|
+|{{torch.manual_seed}} / {{torch.cuda.manual_seed_all}}|동일|
+|PyTorch DataLoader {{worker_init_fn}}|동일|
+|{{os.environ['PYTHONHASHSEED']}}|동일|
+|FAISS / cuVS / ScaNN seed parameter|동일|
+
+*Determinism flag* 는 사용하지 않는다 ({{torch.use_deterministic_algorithms}}).
+이유: matmul 의 atomic add 가 비결정적이며, 강제 결정적 알고리즘은 학습/
+인덱스 빌드를 10× 이상 느리게 만들어 벤치마크의 신뢰성을 해친다. 대신
+*L2 (metric-stable)* 목표를 채택한다.
+
+----
+
+h2. 4. 하드웨어 캡처
+
+각 실행 시 자동으로 다음이 {{results/<exp_id>/hardware.json}} 에 덤프됨
+({{reco_bench/utils/gpu_info.py}}).
+
+{code:bash}
+# 수동 캡처 (디버깅용)
+lscpu > hw.txt
+lspci | grep -i nvidia >> hw.txt
+nvidia-smi -q >> hw.txt
+nvcc --version >> hw.txt
+free -h >> hw.txt
+{code}
+
+이 dump 가 Phase 2 결과 비교 시 hardware drift 를 감지하는 근거가 된다.
+
+----
+
+h2. 5. End-to-end 재현 절차
+
+깨끗한 머신에서 다음 한 줄로 처음부터 끝까지 재현:
+
+{code:bash}
+# 0. 환경 (§2 참고)
+conda activate reco_bench
+
+# 1. 데이터 다운로드 + 전처리 (~15분 ML-25M / ~1시간 Amazon-Beauty)
+bash scripts/00_download_data.sh ml25m
+bash scripts/00_download_data.sh amazon_beauty
+
+# 2. Two-tower 학습 (1× H100 기준 ML-25M ~30분 / Amazon-Beauty ~2시간)
+bash scripts/10_train_two_tower.sh configs/experiments/phase1_baseline.yaml
+
+# 3. ANN index 빌드 (전체 grid, ~30분)
+bash scripts/20_build_index.sh configs/experiments/phase1_baseline.yaml
+
+# 4. 벤치마크 실행 (concurrency × grid × dataset; ~2시간)
+bash scripts/30_run_benchmark.sh configs/experiments/phase1_baseline.yaml
+
+# 5. 자동 리포트 생성
+bash scripts/99_make_report.sh
+{code}
+
+산출물:
+* {{reports/baseline_results.md}}
+* {{reports/figures/*.png}}
+* {{results/<exp_id>/*}} (raw)
+
+----
+
+h2. 6. 결과 비교 절차
+
+본인의 실행 결과를 본 저장소의 reference 결과와 비교하려면:
+
+{code:bash}
+# 본 저장소가 발표한 reference 결과를 받는다 (Phase 1 종료 후 공개)
+git fetch origin reference-results
+git checkout origin/reference-results -- reports/reference/
+
+# 차이 계산 (메트릭별 절대/상대 오차)
+python -m reco_bench.utils.compare \
+    --mine results/<my_exp_id>/aggregate.csv \
+    --ref reports/reference/aggregate.csv
+{code}
+
+{{compare}} 의 통과 기준:
+* Recall@10 (vs exact): ±0.01
+* Recall@10 (vs ground truth): ±0.02
+* QPS: ±10% (CUDA non-determinism)
+* P99 latency: ±15%
+* Recall-QPS Pareto 의 frontier 위 점 개수: 동일
+
+기준을 통과하지 못하면 hardware/driver drift, 또는 측정 무결성 체크리스트
+({{01_metric_design.md §7}}) 의 항목 점검.
+
+----
+
+h2. 7. 자주 묻는 재현 실패 원인
+
+h3. 7.1 GPU 가 다른 모델
+
+본 reference 결과는 H100 SXM5 80G 기준. A100, L40, H100 PCIe 등은 QPS 가
+다르게 측정될 수 있음. cost ratio 는 영향받지 않지만 절대 QPS 는 다름.
+
+h3. 7.2 CUDA / cuVS 버전 불일치
+
+cuVS 의 CAGRA 알고리즘 자체는 버전 간 호환이지만, 24.06 ~ 24.10 사이에
+default param 이 바뀌었음. 본 벤치마크는 *24.10 기준* 의 default 를
+사용. 다른 버전 사용 시 명시.
+
+h3. 7.3 다른 프로세스가 GPU 사용 중
+
+{{nvidia-smi pmon -c 1}} 으로 측정 시작 전 다른 프로세스가 없는지 확인.
+공유 환경 (Kubernetes pod 등) 에서는 reserved GPU 보장 필수.
+
+h3. 7.4 데이터셋 다운로드 mirror 다름
+
+HuggingFace mirror 에 따라 row 순서가 미세하게 다를 수 있음. 본 벤치마크
+는 {{id_map.json}} 의 *content hash* 를 비교해 데이터 동일성 검증.
+
+h3. 7.5 학습 loss spike
+
+bf16 학습은 드물게 loss spike 가 발생 가능. spike 발생 시 시드만 다른
+재시도 (가령 seed=43) 가 가장 빠른 해결. 본 벤치마크는 spike 발생을
+{{train_meta.json}} 의 {{loss_spikes}} 필드에 기록하여 추적.
+
+----
+
+h2. 8. 재현성 체크리스트 (PR 머지 전)
+
+PR 이 본 벤치마크의 결과를 변경한다면 다음을 모두 체크:
+
+* [ ] 같은 머신에서 두 번 실행한 결과의 L2 (±1%) 통과
+* [ ] 다른 머신 (가능하면 다른 GPU 모델) 에서의 L3 (Pareto 형태) 보존
+* [ ] {{requirements.txt}}, {{pyproject.toml}} 의 버전 변경 없음
+  (있다면 {{reports/history/}} 에 entry)
+* [ ] {{configs/cost_model.yaml}} 의 snapshot 날짜 갱신 여부 확인
+* [ ] 새 reference 결과를 {{reports/reference/}} 로 푸시
+* [ ] {{reports/baseline_results.md}} 자동 재생성
+
+----
+
+h2. 9. 알려진 비결정성 (known non-determinism)
+
+||출처||영향||
+|CUDA atomic add in matmul|learn loss 의 micro-difference, train Recall 의 ~0.1% 변동|
+|cuVS CAGRA 의 graph build 의 무작위 sampling|같은 시드여도 graph 가 약간 다름, search QPS 의 ~3% 변동|
+|{{nvidia-smi power.draw}} 의 100ms 샘플링|평균 power 의 ~2% 변동|
+|ScaNN 의 multi-thread reduction 순서|QPS 의 ~5% 변동|
+
+위 노이즈는 모두 L2 (±1%) 보다는 크지만 cost ratio (보통 6~7×) 보다는
+훨씬 작다. 따라서 영업 결론에 영향 없음.
+
+----
+
+h2. 10. Pinning policy (공개 시)
+
+본 저장소가 공개되면 main branch 의 {{requirements.txt}} 와 RAPIDS 버전이
+*고정 (frozen)* 된다. 변경하려면:
+
+# 별도 branch 에서 변경.
+# {{reports/history/<date>_dependency-bump.md}} entry 작성.
+# reference 결과 재생성.
+# PR.
+
+----
+
+h2. 11. 변경 이력
+
+||날짜||변경||근거||
+|2026-05-20|초안 작성|Phase 0 초기 설계. Phase 1 환경 검증 후 §2 의 버전 핀이 tighten 됨.|

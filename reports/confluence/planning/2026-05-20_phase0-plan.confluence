@@ -1,0 +1,268 @@
+h1. reco_bench — VDPU 가치 입증용 Two-tower 추천 benchmark (Phase 0+1)
+
+{quote}
+*상태:* 승인된 계획 (2026-05-20). Phase 0+1 설계의 source of truth.
+이 파일은 구현 시작 전에 검토·승인된 계획 산출물의 원문 사본이다.
+이후의 설계 결정과 방향 전환은 {{reports/history/}} 에 기록된다.
+
+함께 볼 문서:
+- {{reports/00_overview.md}} — 외부 reader 용 진입점
+- {{reports/01_metric_design.md}} — "6~7×" 가 의미하는 바의 형식적 정의
+- {{reports/04_vdpu_value_proposition.md}} — 영업 수식 (cost narrative)
+- {{reports/history/0000_index.md}} — 시간순 설계 진화 기록
+{quote}
+
+h2. Context
+
+디노티시아는 벡터DB 전용 프로세서 *VDPU* (Vector Data Processing Unit; CPU 대비 10×, GPU 대비 6~7× 가성비 주장; 벡터-벡터 유사도 + 벡터DB 인덱스 탐색 가속)를 보유. 이를 쿠팡 등 e-commerce에 판매하려면 *추천 시스템에서의 비용절감 효과를 정량화한 근거 데이터*가 필요하다. Two-tower 추천 모델의 인퍼런스에서 dominant cost는 ANN(approximate nearest neighbor) 단계이며, 정확히 이 구간이 VDPU의 가속 대상이다.
+
+*Phase 0+1 범위 (이번 작업):*
+* VDPU 실물/시뮬레이터 없음 → *GPU baseline benchmark만 완성*. VDPU integration은 후속 Phase 2.
+* 비교 baseline: *GPU 가속 ANN (FAISS-GPU, cuVS CAGRA, ScaNN)*.
+* 데이터셋: *MovieLens-25M + Amazon Reviews 2023 (Beauty/Books/Electronics)* — small~medium 스케일.
+* 산출물: {{reports/}} 안의 메트릭/방법론 설계 문서 + Two-tower 학습 및 GPU ANN baseline 실행 코드/스크립트.
+
+*핵심 제약 (사용자 추가 지시):*
+* 작업 진행 history를 {{reports/}} 에 누적 문서화 (공개 시 설계 evolution 이해 가능하게).
+* 향후 공개 배포 예정 → 라이센스, README, citation, 재현성 기준을 처음부터 준수.
+
+핵심 설계 원칙: *VDPU는 아직 없지만, "VDPU가 또 하나의 {{Retriever}} 구현체로 끼워지면 끝"이 되도록 abstraction을 그려놓는다.* 메트릭/파이프라인은 hardware-agnostic, 비교 frame은 iso-recall 기준.
+
+----
+
+h2. A. 디렉토리 구조
+
+기존 {{logs/}}, {{papers/}}, {{reports/}} 는 유지. 다음을 추가:
+
+{code}
+reco_bench/
+├── CLAUDE.md                      # 기존, 목표 명세
+├── README.md                      # NEW — 공개용 entry-point
+├── LICENSE                        # NEW — Apache-2.0 권장 (논의 필요)
+├── CITATION.cff                   # NEW — 공개 시 인용 형식
+├── requirements.txt, pyproject.toml
+├── configs/                       # YAML per experiment
+│   ├── datasets/{ml25m,amazon_beauty,amazon_books,amazon_electronics}.yaml
+│   ├── models/two_tower_base.yaml
+│   ├── retrievers/{faiss_hnsw_cpu,faiss_ivfpq_gpu,cuvs_cagra,scann_cpu}.yaml
+│   ├── cost_model.yaml            # 클라우드 SKU $/hr + W 스냅샷
+│   └── experiments/phase1_baseline.yaml
+├── reco_bench/                    # importable Python package
+│   ├── data/                      # 데이터셋 loader, splitter
+│   ├── models/                    # two_tower.py, losses.py, samplers.py
+│   ├── retrievers/                # base.py + faiss_gpu.py + cuvs.py + scann.py (+ 추후 vdpu.py)
+│   ├── eval/                      # metrics.py (recall/ndcg/mrr), profiler.py (latency/QPS/power)
+│   ├── pipelines/                 # train.py, build_index.py, evaluate.py, report.py
+│   └── utils/                     # io, seed, gpu_info, cost_model
+├── scripts/                       # sibling-project 스타일 entrypoint shell
+│   ├── 00_download_data.sh
+│   ├── 10_train_two_tower.sh
+│   ├── 20_build_index.sh
+│   ├── 30_run_benchmark.sh
+│   └── 99_make_report.sh
+├── data/                          # raw + processed (gitignored)
+│   ├── raw/{ml-25m,amazon-2023}/
+│   └── processed/<dataset>/{train,val,test}.parquet + item_meta.parquet
+├── checkpoints/                   # tower 가중치, item embedding (.npy)
+├── indexes/                       # 직렬화된 ANN index (retriever × dataset)
+├── results/                       # raw run artifact (JSON per run, CSV aggregate)
+│   └── <exp_id>/{config.yaml,metrics.json,latency.csv,gpu_trace.json}
+├── tests/                         # pytest: 인터페이스 계약 + 메트릭 sanity
+├── logs/                          # 기존, 실행 로그
+├── papers/                        # 기존, 참고 논문
+└── reports/                       # 기존, **공개용 deliverable**
+    ├── 00_overview.md
+    ├── 01_metric_design.md
+    ├── 02_dataset_selection.md
+    ├── 03_baseline_methodology.md
+    ├── 04_vdpu_value_proposition.md
+    ├── 05_reproducibility.md
+    ├── baseline_results.md        # Phase 1에서 자동 생성
+    ├── figures/                   # 자동 생성 PNG
+    └── history/                   # NEW — 작업 history (아래 D절)
+        ├── 0000_index.md
+        └── YYYY-MM-DD_<slug>.md
+{code}
+
+Sibling 프로젝트 컨벤션 (LiveBench, LongBench, KMMLU-Pro, LogicKor: 루트 script + {{config/}} + {{results/}}) 을 따르되, ANN/recsys는 4단계 파이프라인이 코드를 공유하므로 {{reco_bench/}} 패키지로 승격.
+
+----
+
+h2. B. {{reports/}} 의 deliverable 문서 (Phase 0)
+
+모든 문서는 *공개를 전제로* 작성. 내부 비밀(가격 협상, 미공개 고객사명 등)은 포함하지 않는다.
+
+||파일||핵심 내용||
+|{{00_overview.md}}|스코프, non-goals, Phase 0/1/2 로드맵, 용어집 (ANN, Recall@K, Two-tower, VDPU). 공개 reader 가정|
+|{{01_metric_design.md}}|*품질*: Recall@{10,100}, NDCG@{10,100}, HitRate, MRR (수식 + ground-truth 정의: leave-one-out vs temporal split). *시스템*: QPS, P50/P95/P99 latency, index build time, host/device peak memory, energy ({{nvidia-smi power.draw}} 100ms 샘플링), throughput-per-Watt. *Trade-off*: Recall-QPS Pareto 곡선 (ann-benchmarks 컨벤션). *Cost*: {{$/QPS}}, {{$/1M queries}}, {{$/Recall-point}}|
+|{{02_dataset_selection.md}}|ML-25M (sanity, ~60k items), Amazon Reviews 2023 Beauty/Books/Electronics. Split: temporal global 90/5/5, cold-item 처리, training-only negative sampling. *라이센스/citation* 명시 (ML: GroupLens 연구용, Amazon: McAuley UCSD attribution)|
+|{{03_baseline_methodology.md}}|Two-tower 아키텍처 명세, 학습 프로토콜, retriever별 config grid (HNSW M/efConstruction, IVF-PQ nlist/nprobe, CAGRA graph_degree/itopk), 평가 프로토콜, 하드웨어 매트릭스|
+|{{04_vdpu_value_proposition.md}}|*영업 narrative의 수식화*. (1) *Iso-recall cost ratio* = {{$/QPS(GPU @ R=0.95) ÷ $/QPS(VDPU @ R=0.95)}} — 헤드라인 "6~7×" 숫자. (2) *TCO 모델*: HW + 전력 + DC 비용을 3년 amortize, 1B queries/day workload. (3) Sensitivity: corpus 크기/dim/recall target에 따른 multiple 변화. Phase 0 은 GPU 칼럼만 채우고 VDPU 칼럼은 placeholder schema 만|
+|{{05_reproducibility.md}}|핀 고정 버전, seed 정책, 하드웨어 캡처({{lspci}}/{{nvidia-smi}}/{{nvcc}} dump), end-to-end 1-script 재현 절차|
+
+*Phase 1 자동 생성:*
+* {{baseline_results.md}} — {{results/}} 의 JSON 을 집계해 retriever × dataset × hardware 테이블 + 임베디드 PNG 로 매 실행마다 regenerate.
+
+가장 영업 중요도 높은 문서: {{01_metric_design.md}} (6~7× 의 정의), {{04_vdpu_value_proposition.md}} (차트 템플릿).
+
+----
+
+h2. C. 파이프라인 (코드)
+
+*Stage 1 — Data* ({{reco_bench/data/}}, {{scripts/00_download_data.sh}})
+* ML-25M: grouplens zip. Amazon-2023: HuggingFace {{McAuley-Lab/Amazon-Reviews-2023}} 카테고리 parquet.
+* Canonical parquet: {{interactions(user_id, item_id, ts, rating)}} + {{item_meta(item_id, title, category, text)}}.
+* Splitter: temporal global cut + per-user leave-last-N for eval.
+
+*Stage 2 — Two-tower 학습* ({{reco_bench/models/two_tower.py}}, {{pipelines/train.py}})
+* 라이브러리 선택: *PyTorch 직접* (torchrec/RecBole 가 ANN claim 과 orthogonal 한 복잡도를 더함). multi-GPU 필요 시 {{accelerate}}.
+* User tower: ID embedding + recent-N item-ID mean-pool MLP. Item tower: ID embedding + (Amazon 한정) frozen {{sentence-transformers/all-MiniLM-L6-v2}} text encoder.
+* Loss: *sampled softmax + in-batch negatives + logQ correction* (YouTube DNN / Google two-tower 표준).
+* 기본값: dim=128, batch=4096, AdamW lr=1e-3, ML-25M 10 epoch / Amazon 5 epoch, val Recall@100 early stop. 로그 → {{logs/train_<exp_id>.log}}.
+* 출력: {{checkpoints/<exp_id>/{user_tower.pt, item_tower.pt, item_embeddings.npy, item_ids.npy}}}.
+
+*Stage 3 — Index build* ({{pipelines/build_index.py}})
+* item embedding 로딩 → config 의 Retriever 인스턴스화 → {{indexes/<retriever>/<dataset>/}} 에 저장.
+* 기록: {{index_build_seconds}}, {{index_disk_bytes}}, {{peak_host_mem}}, {{peak_device_mem}} → {{results/<exp_id>/build.json}}.
+
+*Stage 4 — Query stream + retrieval 평가* ({{pipelines/evaluate.py}})
+* Query set = test user 의 user-tower embedding (사전 계산).
+* 2가지 모드:
+** *Offline quality*: 전체 query 배치, Recall@K / NDCG@K vs held-out ground truth.
+** *Latency profiling*: 동시성 {1, 4, 16, 64} 로 query 리플레이 (MLPerf single-stream + max-throughput 컨벤션). CUDA event + warmup. {{nvidia-smi --query-gpu=power.draw,memory.used}} 100ms 샘플.
+* Sweep: {{k ∈ {10, 100}}} + retriever-specific 파라미터 grid → Recall-QPS curve.
+
+*Stage 5 — Report 자동 생성* ({{pipelines/report.py}}, {{scripts/99_make_report.sh}})
+* {{results/<exp_id>/*.json}} 집계 → {{reports/baseline_results.md}} (테이블 + PNG) → {{reports/figures/}} 에 Recall-QPS Pareto, latency CDF, $/QPS bar.
+* 비용은 {{configs/cost_model.yaml}} 기반. VDPU 행은 주석 처리된 placeholder.
+
+----
+
+h2. D. 작업 History 문서화 ({{reports/history/}}) — 사용자 추가 요구
+
+공개 시 reader 가 설계 evolution 을 추적할 수 있도록, 모든 주요 작업 단계는 {{reports/history/}} 에 markdown 으로 누적한다.
+
+*파일 명명*: {{YYYY-MM-DD_<short-slug>.md}} (예: {{2026-05-21_init_metric_design.md}}).
+
+*각 entry 의 frontmatter + 본문 구조:*
+{code:markdown}
+---
+date: 2026-05-21
+phase: 0
+topic: metric_design
+status: completed | in_progress | abandoned
+---
+
+## What changed
+(파일/디렉토리/스크립트 단위로 무엇이 추가/변경됐는지)
+
+## Why
+(어떤 의사결정으로 이렇게 했는지 — 대안과 trade-off 포함)
+
+## Validation
+(어떻게 올바름을 확인했는지)
+
+## Open questions / next
+{code}
+
+*언제 entry 를 추가하는가:*
+# 새 문서를 {{reports/}} 에 작성/대폭 개정했을 때.
+# 새 dataset / retriever / 메트릭 추가.
+# 의사결정 (예: ScaNN 보류, dim=128 고정, cost model 가격 스냅샷 갱신).
+# Phase 마일스톤 완료.
+
+*index 파일*: {{reports/history/0000_index.md}} — 시간순 entry 링크 목록 + 한 줄 요약.
+
+*자동화 보조*: {{scripts/new_history.sh "<slug>"}} 가 템플릿을 생성하고 index 에 행 추가 (선택, 우선순위 낮음).
+
+----
+
+h2. E. 핵심 인터페이스 (VDPU 통합 seam)
+
+{code:python}
+# reco_bench/retrievers/base.py
+class Retriever(ABC):
+    name: str
+    def build(self, item_emb: np.ndarray, item_ids: np.ndarray, cfg: dict) -> BuildStats: ...
+    def search(self, queries: np.ndarray, k: int) -> tuple[np.ndarray, np.ndarray]:  # (ids, scores), CPU-side numpy
+        ...
+    def save(self, path: str) -> None: ...
+    def load(self, path: str) -> None: ...
+    def device_info(self) -> dict: ...   # cost model + reproducibility
+{code}
+
+*VDPU Phase 2 통합 경로*: {{reco_bench/retrievers/vdpu.py}} (1 파일) + {{configs/retrievers/vdpu.yaml}} (1 파일) + {{configs/cost_model.yaml}} 에 1행 추가. *파이프라인/Evaluator 변경 0.*
+
+*Abstraction 함정*:
+* {{search()}} 는 batch 입력 + *CPU-side numpy* 반환 (device tensor 금지 → GPU/CPU/VDPU 시간 비교가 apples-to-apples).
+* Base class 에 warmup hook + explicit {{synchronize()}} 를 박아 VDPU sync barrier 누락 방지.
+* 메모리 보고는 *host pinned + device peak 둘 다* (cuVS unified memory, FAISS-GPU non-unified, VDPU 별개).
+* {{search()}} 는 dynamic batch 허용하되 {{LatencyReport}} 는 실제 dispatch batch size 기록 (VDPU 의 sweet-spot batch 가 fixed 일 가능성 대비).
+
+----
+
+h2. F. Phase 0+1 마일스톤 & 우선순위
+
+*Phase 0 (문서; 1~2일):*
+# {{reports/00_overview.md}}, {{01_metric_design.md}}, {{04_vdpu_value_proposition.md}} 골격 — 영업 수식이 정의되어야 다음이 진행됨.
+# {{02_dataset_selection.md}}, {{03_baseline_methodology.md}}, {{05_reproducibility.md}}.
+# {{reports/history/0000_index.md}} + 첫 entry.
+# Acceptance: reader 가 문서만 보고 "6~7× 라는 숫자가 무엇을 의미하는가" 답 가능.
+
+*Phase 1 (코드; Definition-of-Done):*
+# {{scripts/00_download_data.sh}} → {{data/processed/ml-25m/*.parquet}}.
+# {{scripts/10_train_two_tower.sh}} → ML-25M val Recall@100 ≥ 0.30 (Microsoft recommenders NCF/SAR baseline 근사치).
+# {{scripts/20_build_index.sh}} → FAISS-GPU IVF-PQ + cuVS CAGRA + FAISS-CPU HNSW.
+# {{scripts/30_run_benchmark.sh}} → {{results/<exp_id>/metrics.json}} (Recall@{10,100}, NDCG@10, P50/P95/P99 latency, QPS at 4 concurrencies).
+# {{scripts/99_make_report.sh}} → {{reports/baseline_results.md}} + Recall-QPS plot 재생성.
+# Amazon-Beauty 에서 동일 파이프라인 end-to-end.
+# 각 마일스톤마다 {{reports/history/}} 에 entry.
+
+*risk-front-loaded 순서:*
+# Cost-model + 메트릭 정의 (개념적으로 모든 것을 block).
+# ML-25M end-to-end with *하나의* retriever (FAISS-GPU IVF-PQ) — 등뼈 검증.
+# cuVS CAGRA 추가 — refactor 일찍 (path 가 하나일 때).
+# 두번째 dataset (Amazon-Beauty).
+# Param grid + Recall-QPS plot 자동화.
+# Stretch: ScaNN, 추가 Amazon 카테고리, multi-GPU.
+
+*시간 sink 경고:* (a) Amazon-2023 전처리 (per-category metadata join) — 1일; (b) cuVS 환경 (CUDA/RAPIDS 버전 핀) — 0.5일; (c) latency profiling 정확도 (warmup/CUDA sync/concurrent dispatch) — 1일 + 명시적 테스트.
+
+----
+
+h2. G. 검증 (Verification)
+
+End-to-end 동작 확인:
+* *vs Microsoft recommenders*: NCF/SAR ML-25M Recall@10 reference 와 ±0.05 이내 동일 자릿수.
+* *vs ann-benchmarks*: GloVe-100-angular 에 우리 FAISS-GPU wrapper 적용해 published Recall-QPS 곡선 ±10% 일치.
+* *Exhaustive ground truth*: ML-25M 60k items × ~5k test users 에 대해 {{torch.matmul}} brute-force top-K 한 번 캐싱 → 모든 approximate retriever 의 Recall 은 이 정확 집합에 대해 측정 (모델 오차와 ANN 오차 분리).
+* *Unit tests* ({{tests/}}): retriever round-trip (build→save→load→search consistency), splitter no-leak (train ∩ test = ∅ per user-time), 메트릭 수식 vs hand-computed 10-item toy 예, cost-model 산수.
+* *End-to-end 재현*: 깨끗한 셸에서 {{scripts/00_… → 99_…}} 순서로 실행해 {{reports/baseline_results.md}} 가 생성되는지.
+
+----
+
+h2. H. 위험/주의
+
+* *라이센스*: ML-25M 연구용 only (GroupLens citation); Amazon-2023 연구용 + McAuley UCSD attribution. raw 데이터는 repo 에 포함하지 않음. 공개 시 {{LICENSE}} (코드 = Apache-2.0 권장; 데이터셋 = 원 라이센스 명시).
+* *GPU 메모리*: FAISS-GPU 는 HNSW 미지원 → IVF 계열 또는 cuVS CAGRA 만 진정한 GPU 인덱스. HNSW 는 CPU baseline 으로 명시.
+* *임베딩 dim*: Phase 1 은 128 고정 (FAISS-GPU sweet-spot). 더 높은 dim 은 baseline 안정화 후 sweep.
+* *Iso-recall 트랩*: 단일 QPS 숫자 보고 금지. 항상 (Recall, QPS, hardware) 튜플. "VDPU 7× faster at R=0.6 vs GPU at R=0.95" 같은 비교는 영업 자료에서 즉사.
+* *Power 측정*: {{nvidia-smi power.draw}} 는 샘플링 노이즈 있음 → 샘플레이트/적분 윈도우를 문서에 명시 (Phase 2 VDPU 측정도 동일 프로토콜 사용해야 함).
+* *Cost model fragility*: 클라우드 SKU 가격 변동 → {{configs/cost_model.yaml}} 에 스냅샷 날짜 핀.
+* *Internal/confidential 누출*: 공개 전제이므로 {{reports/}} 의 어떤 문서도 비공개 가격 협상, 미공개 고객사, 미공개 ASIC 사양 등 미포함. CDO 인터뷰 인용은 공개 출처(hellot.net 등)만.
+* *History 문서 drift*: history entry 는 commit 과 함께 작성하는 규율 필요 (없으면 evolution 추적 무의미). 가능하면 git hook 또는 PR 템플릿으로 강제.
+
+----
+
+h2. Critical Files (구현 시작 시 만들 우선순위)
+
+# {{/workspace/izlley/sllm/reco_bench/README.md}} — 공개 entry
+# {{/workspace/izlley/sllm/reco_bench/reports/00_overview.md}}
+# {{/workspace/izlley/sllm/reco_bench/reports/01_metric_design.md}}
+# {{/workspace/izlley/sllm/reco_bench/reports/04_vdpu_value_proposition.md}}
+# {{/workspace/izlley/sllm/reco_bench/reports/history/0000_index.md}} + 첫 entry
+# {{/workspace/izlley/sllm/reco_bench/configs/cost_model.yaml}}
+# {{/workspace/izlley/sllm/reco_bench/reco_bench/retrievers/base.py}}
+# {{/workspace/izlley/sllm/reco_bench/reco_bench/pipelines/evaluate.py}}
+# {{/workspace/izlley/sllm/reco_bench/configs/experiments/phase1_baseline.yaml}}
+# {{/workspace/izlley/sllm/reco_bench/scripts/{00,10,20,30,99}_*.sh}}

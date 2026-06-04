@@ -1,0 +1,53 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 1
+topic: readme-references
+status: completed
+{info}
+
+
+h1. README 에 "참고한 오픈 벤치마크" 섹션 추가
+
+h2. What changed
+
+* {{README.md}} 에 *"참고한 오픈 벤치마크 / References"* 섹션 신설.
+  세 분류로 정리:
+## *측정 방법론* — ann-benchmarks (Recall-QPS Pareto + exact
+     ground truth), MLPerf DLRM (single-stream + max-throughput),
+     VectorDBBench (multi-DB frame + cost).
+## *추천 모델/데이터/학습* — Microsoft recommenders (sanity +
+     전처리 정책), RecBole (split 정책), Google Two-tower (logQ loss).
+## *데이터셋* — MovieLens 25M, Amazon Reviews 2023.
+* 각 항목에 **공개 repo/페이지 링크 + 우리 코드의 어느 부분에 반영
+  됐는지** 를 명시.
+* 동기 설명 단락 (README 9~14줄) 의 이름 언급에도 링크 추가 (이전엔
+  ann-benchmarks 만 링크였음).
+
+h2. Why
+
+* 사용자가 "reco_bench 가 어떤 오픈 벤치마크를 참고했는지" 질문 →
+  README 에 이름만 흩어져 있고 무엇을 빌려왔는지 정리된 섹션이 없음을
+  확인. 공개 배포를 전제로 하므로 출처 명시는 필수 (학술/오픈소스
+  예의 + 라이센스 안전).
+* 코드를 fork 한 게 아니라 *방법론을 참조해 새로 구현* 한 것임을
+  명시하여 오해 방지.
+* Google Two-tower 논문의 arXiv 번호를 추측으로 넣었다가, 정확하지
+  않아 제거 (제목 + 저자 + 학회/연도만 유지). 부정확한 링크보다 검증
+  가능한 메타데이터가 낫다.
+
+h2. Validation
+
+* README 의 References 섹션이 본문 동기 단락의 anchor 링크
+  ({{#참고한-오픈-벤치마크--references}}) 와 연결됨.
+* 각 링크가 실제 공개 repo 를 가리키는지 확인 (ann-benchmarks,
+  MLPerf inference, VectorDBBench, recommenders, RecBole, GroupLens,
+  Amazon Reviews 2023 모두 공개 URL).
+* BibTeX 등 세부 인용은 {{reports/02_dataset_selection.md}} 와
+  {{CITATION.cff}} 에 이미 있으므로 중복 대신 cross-reference.
+
+h2. Open questions / next
+
+* 공개 직전: Google Two-tower 논문의 정확한 DOI/링크를 한 번 더 확인해
+  References 에 보강.
+* {{CITATION.cff}} 에도 참고 벤치마크들을 {{references:}} 필드로 추가하면
+  citation tool 이 자동 인식 가능 (선택).
