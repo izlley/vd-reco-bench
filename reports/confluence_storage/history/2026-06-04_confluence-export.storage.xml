@@ -1,0 +1,52 @@
+<ac:structured-macro ac:name="info"><ac:parameter ac:name="title">metadata</ac:parameter><ac:rich-text-body><table><tbody><tr><th>date</th><td>2026-06-04</td></tr><tr><th>phase</th><td>1</td></tr><tr><th>topic</th><td>confluence-export</td></tr><tr><th>status</th><td>completed</td></tr></tbody></table></ac:rich-text-body></ac:structured-macro>
+<h1>reports 문서의 Confluence Wiki Markup 변환</h1>
+<h2>What changed</h2>
+<ul>
+<li><code>scripts/md_to_confluence.py</code> 추가 — markdown → Confluence Wiki
+  Markup (legacy wiki markup) 변환기.</li>
+<li><code>reports/</code> 의 모든 <code>.md</code> (21개) 를 <code>reports/confluence/</code> 에 동일한
+  디렉토리 구조로 <code>.confluence</code> 파일로 변환.</li>
+<li><code>reports/confluence/README.md</code> 추가 — 생성 방법, Confluence 업로드
+  방법, 변환 규칙, 한계 설명.</li>
+<li>원본 <code>.md</code> 는 그대로 유지 (source of truth).</li>
+</ul>
+<p>지원하는 변환:
+- 제목 <code>#</code>..<code>######</code> → <code>h1.</code>..<code>h6.</code>
+- <code>**bold**</code> → <code>*bold*</code>, <code>`code`</code> → <code>{{code}}</code>
+- 코드블록 → <code>{code:lang} ... {code}</code>
+- markdown 표 → Confluence <code>||header||</code> / <code>|cell|</code>
+- 링크 <code>[t](u)</code> → <code>[t|u]</code> (링크 텍스트 내 매크로 정리 포함)
+- frontmatter → <code>{info:title=metadata}</code> 패널
+- blockquote → <code>{quote}</code>, 수평선 → <code>----</code>
+- 블록 수식 <code><ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[..]]></ac:plain-text-body></ac:structured-macro></code> → <code>{noformat}</code> (raw TeX 보존)</p>
+<h2>Why</h2>
+<ul>
+<li>사용자가 reports 문서를 사내 Confluence Wiki 에 올릴 수 있도록
+  Wiki Markup 형식의 별도 파일을 요청.</li>
+<li><strong>변환기 스크립트로 구현</strong> 한 이유: 문서가 21개 + 향후 계속 늘어나며,
+  원본 <code>.md</code> 가 바뀔 때마다 재변환이 필요하므로 수작업 변환은 drift
+  위험. <code>scripts/99_make_report.sh</code> 처럼 재현 가능한 파이프라인으로 둠.</li>
+<li>원본 <code>.md</code> 를 source of truth 로 유지하고 <code>.confluence</code> 는 생성물로
+  취급 → 편집은 항상 <code>.md</code> 에서.</li>
+</ul>
+<h2>Validation</h2>
+<ul>
+<li>21개 파일 모두 변환 성공.</li>
+<li>표 변환 검증: <code>baseline_results.confluence</code> 의 메인 표가
+  <code>||header||</code> + <code>|cell|</code> 형식으로 정상.</li>
+<li>frontmatter 검증: history 파일의 <code>--- yaml ---</code> 가 <code>{info}</code> 패널로.</li>
+<li>코드블록 / LaTeX 블록: <code>{code}</code> / <code>{noformat}</code> 로 감싸지고 내부
+  내용은 변환되지 않음 (보존).</li>
+<li>링크 텍스트 내 매크로 버그 (<code>[{{x}}|url]</code>) 를 후처리로 <code>[x|url]</code> 로
+  정리, 잔존 0건 확인.</li>
+</ul>
+<h2>Open questions / next</h2>
+<ul>
+<li><strong>LaTeX 렌더</strong>: Confluence 가 기본 LaTeX 미지원이라 <code>{noformat}</code> 으로
+  raw TeX 만 보임. 수식 렌더가 필요하면 Confluence LaTeX 매크로 플러그인
+  설치 후 <code>{latex}</code> 로 교체 필요 (reports/confluence/README.md 에 명시).</li>
+<li><strong>이미지</strong>: <code>figures/*.png</code> 는 wiki markup <code>!img!</code> 로 자동 변환 안 함.
+  Confluence 에 그림 첨부 후 수동 삽입 권장.</li>
+<li>Confluence REST API 로 자동 업로드 (페이지 생성/갱신) 까지 확장
+  가능하나, 현재는 복사-붙여넣기용 파일 생성까지만.</li>
+</ul>

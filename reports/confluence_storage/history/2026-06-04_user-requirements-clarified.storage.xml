@@ -1,0 +1,115 @@
+<ac:structured-macro ac:name="info"><ac:parameter ac:name="title">metadata</ac:parameter><ac:rich-text-body><table><tbody><tr><th>date</th><td>2026-06-04</td></tr><tr><th>phase</th><td>1</td></tr><tr><th>topic</th><td>user-requirements-clarified</td></tr><tr><th>status</th><td>completed</td></tr></tbody></table></ac:rich-text-body></ac:structured-macro>
+<h1>사용자 요구사항 명시적 정의 + Vector DB 비교 frame 추가</h1>
+<h2>What changed</h2>
+<p>사용자가 본 프로젝트의 목표를 다음과 같이 재확인:</p>
+<blockquote>
+<p>본 커머셜 추천 벤치마크 프로젝트의 목표는 우리가 만든 벡터디비
+가속기 (VDPU) 를 사용했을 때 <strong>일반적인 오픈소스 벡터디비나 라이브
+러리를 사용했을 때 보다 더 높은 성능을 달성할 수 있느냐</strong> 입니다.</p>
+<ol>
+<li>오픈소스 벤치마크를 참조하여 framework 개발</li>
+<li>쉽게 계산, 성능측정, 성능비교가 가능해야 함</li>
+<li>시각화 + 리포트 자동 생성</li>
+<li>여러 벡터디비를 쉽게 추가해서 벤치마크 계산 가능</li>
+<li>적절한 baseline 성능 지표 선정</li>
+</ol>
+</blockquote>
+<p>다음을 본 entry 에서 명문화하고 후속 단계에 반영:</p>
+<ul>
+<li><strong>비교 대상은 두 카테고리</strong>:</li>
+<li><strong>카테고리 A — ANN 라이브러리</strong> (in-process): FAISS-CPU HNSW,
+    cuVS IVF-PQ, cuVS CAGRA, ScaNN. (Phase 1 의 현재 범위.)</li>
+<li><strong>카테고리 B — 오픈소스 Vector DB 서버</strong> (client/server):
+    Milvus, Qdrant, Weaviate, pgvector 등. (Phase 1.5 로 추가 — 본
+    entry 에서 새로 명문화된 phase.)</li>
+<li><strong><code>Retriever</code> 추상 클래스의 contract 가 두 카테고리 모두 수용</strong>:
+  client/server vector DB 도 build = (collection 생성 + insert),
+  search = (client.search) 형태로 동일 인터페이스 안에 들어간다.
+  추가 시 새 파일 (<code>reco_bench/retrievers/&lt;name&gt;.py</code>) + YAML 한 개 +
+  cost_model 한 행이면 끝. <strong>VDPU integration 의 seam 과 정확히
+  동일.</strong></li>
+<li><strong>시각화의 명시적 산출물 목록</strong> (Phase 1 Step 8 의 DoD):
+  1. Recall-QPS Pareto 곡선 (메인 차트, retriever × dataset).
+  2. Latency CDF (P50/P95/P99 시각).
+  3. $/1M queries 막대 그래프 (iso-recall 0.95).
+  4. Recall-vs-corpus-size scaling 그래프.
+  5. Throughput-per-Watt 그래프 (Phase 2 부터 신뢰 가능).</li>
+<li><strong>"단일 명령으로 전체 비교"</strong> 보장:
+  <code>bash scripts/30_run_benchmark.sh configs/experiments/phase1_baseline.yaml</code>
+  한 번에 모든 retriever × 모든 dataset × 모든 param grid 의 측정이
+  완료되고, <code>bash scripts/99_make_report.sh</code> 한 번에 위 5종 시각화 +
+  markdown 리포트가 재생성되어야 한다.</li>
+</ul>
+<h2>Why</h2>
+<p>사용자가 강조한 요구사항 중 <strong>현재 설계와 일치하는 것</strong> 과 <strong>추가/강화
+필요한 것</strong> 을 분리:</p>
+<table>
+<thead>
+<tr>
+<th>요구</th>
+<th>현재 설계</th>
+<th>추가 필요?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>오픈소스 벤치마크 참조</td>
+<td>ann-benchmarks, VectorDBBench, MLPerf DLRM 참조 명시 (<code>reports/00_overview.md</code> §2)</td>
+<td>✓ 완료</td>
+</tr>
+<tr>
+<td>쉬운 계산/비교</td>
+<td><code>scripts/00_~99_</code> 단일 명령 파이프라인</td>
+<td>✓ 의도 (Phase 1 Step 4~8 에서 구현)</td>
+</tr>
+<tr>
+<td>시각화 + 리포트</td>
+<td><code>reports/figures/</code> + <code>baseline_results.md</code> 자동 생성</td>
+<td>✓ 의도, <strong>5종 그래프를 본 entry 에서 명시화</strong></td>
+</tr>
+<tr>
+<td>여러 vector DB 쉽게 추가</td>
+<td><code>Retriever</code> 추상 클래스 + retriever YAML</td>
+<td><strong>부분</strong> — ANN 라이브러리는 다뤘으나 vector DB <strong>서버</strong> 가 빠져 있었음. 본 entry 에서 Phase 1.5 로 추가.</td>
+</tr>
+<tr>
+<td>적절한 baseline</td>
+<td>FAISS-CPU HNSW + cuVS IVF-PQ + cuVS CAGRA</td>
+<td>✓, Vector DB 추가 후 더 풍부</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Phase 1.5 의 명확화</strong>: Phase 1 의 ANN 라이브러리 baseline 이 완성된
+직후, VDPU 측정 (Phase 2) 전에 Milvus / Qdrant 같은 vector DB 서버를
+같은 frame 으로 측정한다. 이게 <strong>"VDPU 가 시장의 vector DB 보다 빠른가"</strong>
+라는 사용자의 핵심 영업 질문에 직접 답한다.</p>
+<h2>Validation</h2>
+<ul>
+<li>본 entry 가 정의한 <strong>5종 그래프 + 단일 명령 보장</strong> 은 Phase 1 의
+  Step 4~8 DoD 에 박혀 있다. Step 8 종료 시 위 5종이 자동 생성되지
+  않으면 Step 8 완료로 보지 않음.</li>
+<li><strong>Vector DB retriever skeleton</strong> (Milvus, Qdrant 의 YAML 과 빈
+  retriever class 파일) 을 본 entry 와 함께 추가하여, 후속 코드가
+  들어올 자리만 표시.</li>
+<li><code>reports/00_overview.md</code>, <code>reports/03_baseline_methodology.md</code>,
+  <code>reports/04_vdpu_value_proposition.md</code> 에 본 카테고리 A/B 분류를
+  반영.</li>
+</ul>
+<h2>Open questions / next</h2>
+<ul>
+<li><strong>Vector DB 별 측정 방식</strong>:</li>
+<li><strong>Embedded mode</strong> (in-process Python binding) 가 가능한 DB
+    (Milvus Lite, pgvector via SQLite/duckdb) 는 그대로 retriever
+    class 안에서 작동.</li>
+<li><strong>Server mode</strong> (gRPC/HTTP) DB 는 별도 Docker compose 가 필요.
+    <code>scripts/</code> 에 <code>start_vector_db.sh</code> / <code>stop_vector_db.sh</code> 추가
+    필요. 측정 시 network latency 가 포함되므로 <strong>iso-recall 비교의
+    fairness 정의</strong> 가 별도 문서로 필요 (
+    <code>reports/06_vector_db_comparison_protocol.md</code>, 작성 예정).</li>
+<li><strong>VDPU 의 시장 위치</strong>: 단순 ANN 라이브러리 (in-process) vs Vector DB
+  서버 (network-bound) 의 중간에 위치. 영업 narrative 에서 어느 쪽과
+  비교해야 더 강한지 결정 필요. 본 벤치마크는 두 쪽 모두 보고하고,
+  reader 가 자기 환경에 맞는 비교를 고를 수 있게 한다.</li>
+<li>다음 = ML-25M 학습 실 실행 + Step 4 (cuVS IVF-PQ retriever) 구현
+  병렬 진행.</li>
+</ul>

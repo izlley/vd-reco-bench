@@ -1,0 +1,226 @@
+<h1>02 · 데이터셋 선정 (Dataset Selection)</h1>
+<blockquote>
+<p>이 문서는 Phase 0+1 에서 사용하는 데이터셋의 <strong>선정 근거</strong>, <strong>전처리
+절차</strong>, <strong>라이센스/인용</strong>, <strong>재현 절차</strong> 를 정의한다.</p>
+</blockquote>
+<h2>1. 선정 원칙</h2>
+<p>다음 다섯 가지 기준을 모두 만족하는 데이터셋만 채택한다:</p>
+<ol>
+<li><strong>공개 가능</strong> — raw 데이터가 공개되어 있어야 reader 가 재현 가능.</li>
+<li><strong>추천 도메인 표준</strong> — 학계/산업 컨퍼런스 (RecSys, KDD, WWW) 에서
+   비교 기준으로 자주 쓰여야 결과가 외부와 정렬됨.</li>
+<li><strong>Two-tower 적합</strong> — user × item × timestamp interaction 구조가
+   명확해야 함.</li>
+<li><strong>스케일 다양성</strong> — sanity check 용 작은 셋과 의미 있는 medium 셋이
+   모두 있어야 함.</li>
+<li><strong>라이센스 명확</strong> — 연구용 사용 권리가 문서화되어 있어야 함.</li>
+</ol>
+<h2>2. 채택 데이터셋</h2>
+<h3>2.1 MovieLens 25M</h3>
+<ul>
+<li><strong>출처</strong>: GroupLens Research, University of Minnesota.</li>
+<li><strong>URL</strong>: https://grouplens.org/datasets/movielens/25m/</li>
+<li><strong>규모</strong>:</li>
+<li>Interaction: 25,000,095 ratings.</li>
+<li>User: 162,541.</li>
+<li>Item: 62,423 (movie title).</li>
+<li>Period: 1995-01-09 ~ 2019-11-21.</li>
+<li><strong>Rating 분포</strong>: 0.5 ~ 5.0 (0.5 단위, 10단계).</li>
+<li><strong>라이센스</strong>: GroupLens 연구용 라이센스. 재배포 금지, 학술 사용 권장,
+  citation 의무.</li>
+<li><strong>인용 (BibTeX)</strong>:
+  <code>bibtex
+  @article{harper2015movielens,
+    title={The MovieLens Datasets: History and Context},
+    author={Harper, F. Maxwell and Konstan, Joseph A.},
+    journal={ACM Transactions on Interactive Intelligent Systems},
+    volume={5}, number={4}, pages={1--19}, year={2015},
+    publisher={ACM}, doi={10.1145/2827872}
+  }</code></li>
+</ul>
+<p><strong>왜 채택했는가:</strong>
+- 추천 시스템 분야의 de facto 표준 sanity check.
+- 작은 규모 (6만 item) → 빠른 iteration, brute-force exact top-K 계산
+  가능 (모델 오차와 ANN 오차 분리에 필수).
+- Microsoft <code>recommenders</code>, RecBole, OpenP5 등 다수 라이브러리가 동일
+  데이터셋에 대한 Recall@10 reference 값을 공개 → sanity check 의 ground.</p>
+<p><strong>한계:</strong>
+- Item 수 6만으로는 VDPU 의 강점 (대규모 corpus 가속) 이 잘 드러나지
+  않음. 따라서 <strong>methodology 검증용</strong> 으로 한정한다.</p>
+<h3>2.2 Amazon Reviews 2023</h3>
+<ul>
+<li><strong>출처</strong>: Julian McAuley Lab, UC San Diego.</li>
+<li><strong>URL</strong>: https://amazon-reviews-2023.github.io/</li>
+<li><strong>HuggingFace</strong>: <code>McAuley-Lab/Amazon-Reviews-2023</code> (per-category parquet).</li>
+<li><strong>규모</strong> (전체):</li>
+<li>Review: 약 5.7억 (2023년 9월 기준).</li>
+<li>User: 5,470만+.</li>
+<li>Item: 4,800만+.</li>
+<li>Period: 1996-05-21 ~ 2023-09-30.</li>
+<li><strong>본 벤치마크에서 사용하는 카테고리</strong>:
+  | 카테고리 | Review | User | Item | 본 벤치마크에서의 용도 |
+  |---|---|---|---|---|
+  | Beauty_and_Personal_Care | 약 23M | 약 11M | 약 110k | 가장 작은 medium 셋, 1차 실험 |
+  | Books | 약 30M | 약 10M | 약 700k | 가장 큰 medium 셋, scaling 효과 |
+  | Electronics | 약 43M | 약 18M | 약 1.6M | item 수 1M+ 의 본격적 부하 |</li>
+<li><strong>라이센스</strong>: 연구용 라이센스. McAuley UCSD 의 attribution 의무.</li>
+<li><strong>인용 (BibTeX)</strong>:
+  <code>bibtex
+  @article{hou2024bridging,
+    title={Bridging Language and Items for Retrieval and Recommendation},
+    author={Hou, Yupeng and Li, Jiacheng and He, Zhankui and Yan, An and
+            Chen, Xiusi and McAuley, Julian},
+    journal={arXiv preprint arXiv:2403.03952},
+    year={2024}
+  }</code></li>
+</ul>
+<p><strong>왜 채택했는가:</strong>
+- E-commerce 도메인의 사실상 표준. 영업 narrative ("쇼핑몰") 와 도메인
+  일치.
+- 카테고리별로 scale 이 자연스럽게 다양 (10만 ~ 100만 item) → corpus
+  size sweep 가능.
+- 텍스트 metadata (제목, 설명, 리뷰) 가 함께 제공 → text encoder 를 가진
+  realistic two-tower 학습 가능.</p>
+<p><strong>한계:</strong>
+- 사용자 ID 가 카테고리별로 분리되어 cross-category recommendation 은
+  본 벤치마크에서 다루지 않음.
+- 평점 5점 척도라 binary 변환 정책 필요 (§3 참조).</p>
+<h2>3. 전처리 절차</h2>
+<p>모든 전처리는 <code>reco_bench/data/</code> 에 구현되며 <code>scripts/00_download_data.sh</code>
+한 번에 실행 가능.</p>
+<h3>3.1 공통 canonical schema</h3>
+<p>전처리 후 모든 데이터셋은 두 개의 parquet 으로 정규화된다:</p>
+<p><strong><code>interactions.parquet</code></strong>:</p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[user_id      int64    # 0-indexed dense remap
+item_id      int64    # 0-indexed dense remap
+ts           int64    # unix epoch seconds
+rating       float32  # original rating (nullable)
+]]></ac:plain-text-body></ac:structured-macro>
+<p><strong><code>item_meta.parquet</code></strong>:</p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[item_id      int64
+title        string   # nullable for ML-25M only-title-no-text
+category     string   # ML: genres pipe-joined, Amazon: category path
+text         string   # Amazon: title + brand + features; ML: title only
+]]></ac:plain-text-body></ac:structured-macro>
+<h3>3.2 ID remapping</h3>
+<ul>
+<li>원본 user/item ID 는 보통 sparse 또는 hash 형태. 메모리 효율과 학습
+  속도를 위해 [0, N) 의 dense int 로 remap.</li>
+<li>Remap 테이블은 <code>data/processed/&lt;dataset&gt;/id_map.json</code> 에 보관 (재현용).</li>
+</ul>
+<h3>3.3 Rating 의 implicit 변환</h3>
+<p>Two-tower retrieval 은 implicit feedback 이 표준이다. 다음 정책으로
+binary positive 변환:</p>
+<ul>
+<li><strong>ML-25M</strong>: rating ≥ 3.5 → positive. (그 이하는 dislike 으로 보고 학습
+  에서 제외.)</li>
+<li><strong>Amazon-2023</strong>: rating ≥ 4.0 → positive. (e-commerce 의 4점 이상이
+  "구매 만족" 임을 가정.)</li>
+<li>이 cutoff 는 Microsoft <code>recommenders</code> 와 동일하다.</li>
+</ul>
+<h3>3.4 User/item filtering (k-core)</h3>
+<p>Cold-start 문제 회피와 학습 안정성을 위해 5-core filtering:</p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[반복:
+  - interaction 수 < 5 인 user 제거
+  - interaction 수 < 5 인 item 제거
+수렴 시 종료
+]]></ac:plain-text-body></ac:structured-macro>
+<p>이는 RecBole 의 default 와 동일.</p>
+<h3>3.5 Split policy</h3>
+<p><code>01_metric_design.md §2.2</code> 와 동일:</p>
+<ul>
+<li><strong>Temporal global split (기본)</strong>: timestamp 정렬 후 90/5/5.</li>
+<li><strong>Leave-last-N (Microsoft recommenders 호환)</strong>: 별도 split 으로 옵션
+  제공.</li>
+</ul>
+<p>산출: <code>train.parquet</code>, <code>val.parquet</code>, <code>test.parquet</code>.</p>
+<h3>3.6 Text feature 처리 (Amazon 만)</h3>
+<ul>
+<li><code>title + ' ' + (features 의 처음 256자)</code> 를 단일 문자열로 합쳐
+  <code>sentence-transformers/all-MiniLM-L6-v2</code> (384-dim) 로 임베딩.</li>
+<li>본 텍스트 임베딩은 학습 중 frozen.</li>
+<li>ML-25M 은 title 만 가지므로 text feature 없이 ID-only two-tower 사용.</li>
+</ul>
+<h3>3.7 Ground-truth 캐시</h3>
+<ul>
+<li><code>data/processed/&lt;dataset&gt;/exact_topk.npy</code>:
+  학습 종료 후 item embedding 에 대해 brute-force top-K 계산해 cache.
+  ANN-isolation Recall 계산에 사용.</li>
+</ul>
+<h2>4. 데이터 통계 검증</h2>
+<p>각 데이터셋의 전처리 결과는 다음 sanity check 를 통과해야 함
+(<code>tests/test_data.py</code>):</p>
+<ul>
+<li>[ ] User 수 = <code>id_map.user_id</code> 의 unique count.</li>
+<li>[ ] Item 수 = <code>id_map.item_id</code> 의 unique count.</li>
+<li>[ ] Split: train ∩ test = ∅ (user-time tuple 기준).</li>
+<li>[ ] Train interaction 의 timestamp max &lt; val interaction 의 timestamp
+      min (temporal split 의 경우).</li>
+<li>[ ] Implicit 변환 후 positive 비율이 reasonable 범위 (e.g. 20-80%).</li>
+<li>[ ] k-core 후 모든 user/item 의 interaction 수 ≥ 5.</li>
+</ul>
+<h2>5. 라이센스 준수 가이드</h2>
+<p>본 저장소는 <strong>raw 데이터를 포함하지 않는다.</strong> 사용자는 <code>scripts/00_download_data.sh</code>
+실행 시 GroupLens / HuggingFace 에서 직접 다운로드하며, 그 시점에 각
+라이센스에 동의한다.</p>
+<p>전처리된 parquet 도 <code>.gitignore</code> 에 의해 제외되므로 fork/PR 시에도
+유출되지 않는다.</p>
+<p><strong>공개 시:</strong>
+- README 에 라이센스 명시 (이미 반영).
+- <code>reports/02_dataset_selection.md</code> (본 문서) 를 통해 citation 의무 안내.
+- 만약 결과 발표 (블로그/논문) 시 두 데이터셋 모두의 citation 명시.</p>
+<h2>6. Phase 2 확장 후보</h2>
+<p>다음 데이터셋은 방법론이 정착한 후 추가 검토 대상:</p>
+<table>
+<thead>
+<tr>
+<th>후보</th>
+<th>규모</th>
+<th>매력</th>
+<th>위험</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KuaiRec</td>
+<td>약 600만 interaction, 약 1만 item</td>
+<td>산업급 dense matrix</td>
+<td>작은 item space</td>
+</tr>
+<tr>
+<td>Taobao User Behavior</td>
+<td>약 1억 interaction, 약 400만 item</td>
+<td>item space 큼, 산업급</td>
+<td>라이센스 복잡</td>
+</tr>
+<tr>
+<td>Criteo Display 1TB</td>
+<td>수억 행</td>
+<td>DLRM 표준</td>
+<td>CTR 용이라 two-tower 부적합</td>
+</tr>
+<tr>
+<td>Spotify MPD</td>
+<td>100만 playlist × 200만 track</td>
+<td>큰 item space</td>
+<td>평가 정의가 다름</td>
+</tr>
+</tbody>
+</table>
+<h2>7. 변경 이력</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-20</td>
+<td>초안 작성</td>
+<td>Phase 0 초기 설계</td>
+</tr>
+</tbody>
+</table>

@@ -1,0 +1,188 @@
+<h1>baseline_results.md — 자동 생성</h1>
+<blockquote>
+<p>이 파일은 <code>scripts/99_make_report.sh</code> 가 자동 생성합니다. 직접 편집
+하지 마세요. 메트릭 정의는 <a href="01_metric_design.html"><code>01_metric_design.md</code></a>,
+방법론은 <a href="03_baseline_methodology.html"><code>03_baseline_methodology.md</code></a> 참조.</p>
+</blockquote>
+<h2>메인 결과 표</h2>
+<p>각 (dataset, retriever) 조합에서 <strong>Recall@10 vs exact 가 가장 높은 grid
+점</strong> 의 결과 (동일 recall 이면 QPS 가 더 큰 쪽 선택).</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Retriever</th>
+<th>Device</th>
+<th>Recall@10 (vs exact)</th>
+<th>Recall@10 (vs GT)</th>
+<th>NDCG@10</th>
+<th>QPS (max c)</th>
+<th>P99 ms</th>
+<th>$/1M</th>
+<th>W/QPS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>amazon_beauty</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>0.9993</td>
+<td>0.0077</td>
+<td>0.0048</td>
+<td>13,839</td>
+<td>12.38</td>
+<td>$0.0984</td>
+<td>0.00</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>cuvs_ivfpq</td>
+<td>cuda</td>
+<td>0.5477</td>
+<td>0.0076</td>
+<td>0.0050</td>
+<td>11,599</td>
+<td>6.97</td>
+<td>$0.1173</td>
+<td>0.00</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>0.9973</td>
+<td>0.0077</td>
+<td>0.0048</td>
+<td>38,711</td>
+<td>1.15</td>
+<td>$0.0102</td>
+<td>0.00</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>scann_cpu</td>
+<td>cpu</td>
+<td>0.9874</td>
+<td>0.0077</td>
+<td>0.0048</td>
+<td>5,196</td>
+<td>0.51</td>
+<td>$0.0759</td>
+<td>0.02</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>1.0000</td>
+<td>0.0195</td>
+<td>0.1161</td>
+<td>4,469</td>
+<td>77.15</td>
+<td>$0.3046</td>
+<td>0.02</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>cuvs_ivfpq</td>
+<td>cuda</td>
+<td>0.4649</td>
+<td>0.0231</td>
+<td>0.1304</td>
+<td>1,055</td>
+<td>61.03</td>
+<td>$0.9695</td>
+<td>0.05</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>1.0000</td>
+<td>0.0195</td>
+<td>0.1161</td>
+<td>189,739</td>
+<td>0.18</td>
+<td>$0.0021</td>
+<td>0.00</td>
+</tr>
+</tbody>
+</table>
+<h2>Iso-recall speedup (Recall@10 vs exact ≥ 0.95)</h2>
+<p>각 dataset 안에서 가장 느린 retriever 를 1× 로 두고, 다른 retriever 의 QPS 배수.</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Retriever</th>
+<th>Device</th>
+<th>QPS</th>
+<th>Speedup vs slowest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>amazon_beauty</td>
+<td>scann_cpu</td>
+<td>cpu</td>
+<td>5,196</td>
+<td>1.00×</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>14,909</td>
+<td>2.87×</td>
+</tr>
+<tr>
+<td>amazon_beauty</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>102,126</td>
+<td>19.65×</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>cuvs_cagra</td>
+<td>cuda</td>
+<td>4,469</td>
+<td>1.00×</td>
+</tr>
+<tr>
+<td>ml25m</td>
+<td>faiss_hnsw_cpu</td>
+<td>cpu</td>
+<td>332,176</td>
+<td>74.33×</td>
+</tr>
+</tbody>
+</table>
+<h2>시각화</h2>
+<h3>Recall-QPS Pareto 곡선</h3>
+<p><ac:image><ri:attachment ri:filename="recall_vs_qps.png"/></ac:image></p>
+<p>곡선의 점선은 retriever × dataset 별 Pareto frontier. 빨간 점선은
+iso-recall = 0.95 비교 기준선 (<code>reports/01_metric_design.md §4.1</code>).</p>
+<h3>Single-stream latency 분포</h3>
+<p><ac:image><ri:attachment ri:filename="latency_cdf.png"/></ac:image></p>
+<h3>Cost @ iso-recall (≥0.90)</h3>
+<p><ac:image><ri:attachment ri:filename="cost_bar.png"/></ac:image></p>
+<h3>Throughput vs concurrency</h3>
+<p><ac:image><ri:attachment ri:filename="concurrency_qps.png"/></ac:image></p>
+<h3>Throughput per Watt @ iso-recall (≥0.90)</h3>
+<p><ac:image><ri:attachment ri:filename="throughput_per_watt.png"/></ac:image></p>
+<p>전력 측정이 가능한 경우에만 표시. CPU 만 사용한 retriever 는 보통
+NVML 샘플링 결과가 0 이라 제외된다.</p>
+<h2>데이터 소스</h2>
+<ul>
+<li>메트릭: <code>results/&lt;exp_id&gt;/metrics.json</code></li>
+<li>집계 CSV: <code>results/&lt;exp_id&gt;/aggregate.csv</code></li>
+<li>하드웨어: <code>results/&lt;exp_id&gt;/hardware.json</code></li>
+<li>비용 모델: <code>configs/cost_model.yaml</code></li>
+</ul>
+<h2>주의 (현재 단계 한계)</h2>
+<p>본 자동 생성 결과는 ML-25M sanity check 단계의 측정이다. 본 표의 절대
+값보다 <strong>retriever × hardware 간 상대 비교</strong> 에 의미를 둔다. 그래도
+<code>Recall@10 vs ground truth</code> 가 낮다면 모델 학습이 부족한 신호이며,
+<code>Recall@10 vs exact</code> 는 ANN 알고리즘 자체의 정확도라 모델 품질과 독립.</p>

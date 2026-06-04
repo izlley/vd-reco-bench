@@ -1,0 +1,459 @@
+<h1>03 · Baseline 방법론 (Methodology)</h1>
+<blockquote>
+<p>이 문서는 Phase 1 에서 구현할 GPU baseline 의 <strong>모델 아키텍처</strong>,
+<strong>학습 절차</strong>, <strong>인덱스 빌드 파라미터</strong>, <strong>평가 절차</strong>, <strong>하드웨어
+매트릭스</strong> 를 정의한다. <code>pipelines/*.py</code> 의 구현은 본 문서를 그대로
+따른다.</p>
+</blockquote>
+<hr />
+<h2>1. Two-tower 아키텍처</h2>
+<h3>1.1 전체 그림</h3>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[              user features                       item features
+                   │                                    │
+                   ▼                                    ▼
+        ┌─────────────────────┐               ┌────────────────────┐
+        │  User Tower         │               │  Item Tower        │
+        │  (학습 가능)         │               │  (학습 가능)        │
+        │                     │               │                    │
+        │  ID embedding +     │               │  ID embedding +    │
+        │  recent-N mean-pool │               │  (text encoder,    │
+        │  + MLP              │               │   Amazon only,     │
+        │                     │               │   frozen) + MLP    │
+        └─────────────────────┘               └────────────────────┘
+                   │                                    │
+                   ▼                                    ▼
+            user emb u (d-dim)                  item emb v (d-dim)
+                            \                   /
+                             \   dot product   /
+                              \─────●─────────/
+                                     │
+                                  score(u, v)
+]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li><strong>공유 차원</strong> <code>d = 128</code> (Phase 1 고정). dim sweep 은 Phase 2.</li>
+<li><strong>정규화</strong>: 두 tower 의 출력에 L2 normalize → score = cosine.</li>
+<li><strong>유사도</strong>: cosine. (FAISS HNSW/IVF, cuVS CAGRA 모두 inner product
+  지원하며, 정규화 후에는 inner product = cosine.)</li>
+</ul>
+<h3>1.2 User tower 상세</h3>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[input:
+  user_id           int
+  recent_item_ids   List[int] (최근 N 개의 positive 상호작용, N=50)
+
+forward:
+  u_id_emb = UserEmbedding(user_id)                    # (d_id,)
+  recent_embs = ItemEmbedding(recent_item_ids)         # (N, d_id)
+  recent_mean = mean(recent_embs, axis=0)              # (d_id,)
+  concat = [u_id_emb, recent_mean]                     # (2*d_id,)
+  u = MLP(concat) → ReLU → MLP → L2_normalize          # (d,)
+]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li><code>d_id = 64</code>, hidden MLP = 256, output <code>d = 128</code>.</li>
+</ul>
+<h3>1.3 Item tower 상세</h3>
+<p><strong>ML-25M (ID-only):</strong></p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[v_id_emb = ItemEmbedding(item_id)                     # (d_id,)
+v = MLP(v_id_emb) → ReLU → MLP → L2_normalize          # (d,)
+]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Amazon (ID + text):</strong></p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[v_id_emb = ItemEmbedding(item_id)                     # (d_id,)
+v_text_emb = SentenceTransformer(item.text)           # (384,), frozen
+concat = [v_id_emb, v_text_emb]                       # (d_id + 384,)
+v = MLP(concat) → ReLU → MLP → L2_normalize           # (d,)
+]]></ac:plain-text-body></ac:structured-macro>
+<p>ItemEmbedding 은 user tower 의 ItemEmbedding 과 <strong>공유</strong> (sub-linear 시
+contextual bandit / dual tower 와의 통합 용이).</p>
+<h3>1.4 Loss</h3>
+<p><strong>Sampled softmax with in-batch negatives + logQ correction.</strong> Google 의
+"Sampling-bias-corrected" (Yi et al., 2019) 공식:</p>
+<p>배치 안의 <code>(u_i, v_i)</code> pair 에 대해:</p>
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\mathcal{L} = -\frac{1}{B} \sum_{i=1}^{B}
+\log \frac{\exp(s_{ii} - \log Q(v_i))}{\sum_{j=1}^{B} \exp(s_{ij} - \log Q(v_j))}]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li><code>s_{ij} = \langle u_i, v_j \rangle / \tau</code>.</li>
+<li><code>\tau = 0.07</code> (CLIP / DCG 표준).</li>
+<li><code>Q(v)</code>: streaming frequency estimate of item <code>v</code> (count-min sketch
+  size = 2^20).</li>
+<li>logQ 보정은 popular item 이 negative 로 더 자주 등장하는 bias 를
+  완화한다.</li>
+</ul>
+<p>추가: <strong>hard negative mining</strong> 은 Phase 2 (구현 단순성 우선).</p>
+<hr />
+<h2>2. 학습 프로토콜</h2>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>ML-25M</th>
+<th>Amazon-Beauty</th>
+<th>Amazon-Books</th>
+<th>Amazon-Electronics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Batch size</td>
+<td>4096</td>
+<td>4096</td>
+<td>2048</td>
+<td>2048</td>
+</tr>
+<tr>
+<td>Epoch (max)</td>
+<td>10</td>
+<td>5</td>
+<td>5</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Optimizer</td>
+<td>AdamW lr=1e-3, wd=1e-4</td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+<tr>
+<td>LR scheduler</td>
+<td>cosine, warmup 1k steps</td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+<tr>
+<td>Gradient clip</td>
+<td>1.0</td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+<tr>
+<td>Early stop</td>
+<td>val Recall@100 plateau 3 epoch</td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+<tr>
+<td>Precision</td>
+<td>bfloat16 (matmul), fp32 (norm/loss)</td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+<tr>
+<td>GPU</td>
+<td>1× H100 80G (Phase 1 가정)</td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+<tr>
+<td>Seed</td>
+<td>42</td>
+<td>42</td>
+<td>42</td>
+<td>42</td>
+</tr>
+<tr>
+<td>Random sampler</td>
+<td>RandomSampler with <code>seed=42</code></td>
+<td>동일</td>
+<td>동일</td>
+<td>동일</td>
+</tr>
+</tbody>
+</table>
+<p>학습 로그:
+- TensorBoard event → <code>logs/tb_&lt;exp_id&gt;/</code>
+- 텍스트 로그 → <code>logs/train_&lt;exp_id&gt;.log</code>
+- val Recall@10, Recall@100, loss epoch 별 기록.</p>
+<p>산출:
+- <code>checkpoints/&lt;exp_id&gt;/user_tower.pt</code>
+- <code>checkpoints/&lt;exp_id&gt;/item_tower.pt</code>
+- <code>checkpoints/&lt;exp_id&gt;/item_embeddings.npy</code> (shape: <code>(num_items, 128)</code>,
+  dtype <code>float32</code>)
+- <code>checkpoints/&lt;exp_id&gt;/item_ids.npy</code> (shape: <code>(num_items,)</code>, dtype
+  <code>int64</code>, item embedding 행과 동순서)
+- <code>checkpoints/&lt;exp_id&gt;/train_meta.json</code> (config snapshot, val 메트릭,
+  학습 시간)</p>
+<h3>2.1 Sanity threshold (Phase 1 DoD 의 일부)</h3>
+<p>ML-25M val Recall@100 ≥ <strong>0.30</strong> 이 되어야 학습 success. (Microsoft
+<code>recommenders</code> NCF/SAR baseline 의 ML-25M Recall@10 = 0.10~0.15 / Recall@100 ≈ 0.35
+근방 기준.)</p>
+<p>미달 시 학습 hyperparameter 조정 후 재시도. baseline benchmark 가 약한
+모델 위에서 측정되면 cost ratio 의 의미가 사라진다.</p>
+<hr />
+<h2>3. ANN 인덱스 빌드</h2>
+<h3>3.1 Retriever 비교 매트릭스 (Phase 1)</h3>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>구현체</th>
+<th>Index</th>
+<th>디바이스</th>
+<th>비고</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td><code>faiss-cpu</code> 1.14</td>
+<td>HNSW</td>
+<td>CPU</td>
+<td>CPU baseline 표준. GPU 미지원.</td>
+</tr>
+<tr>
+<td>cuVS IVF-PQ</td>
+<td><code>cuvs.neighbors.ivf_pq</code> (cuVS 26.04)</td>
+<td>IVF + PQ</td>
+<td>GPU</td>
+<td>GPU baseline 의 메모리 효율 측. (원래 FAISS-GPU IVF-PQ 를 쓸 계획이었으나 PyTorch 와 cublas ABI 충돌해 cuVS 의 동등 구현체로 변경 — <code>reports/history/2026-06-04_env-setup.md</code> 참조.)</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td><code>cuvs.neighbors.cagra</code> (cuVS 26.04)</td>
+<td>CAGRA (graph)</td>
+<td>GPU</td>
+<td>GPU baseline 의 속도 측 (VDPU 의 진짜 경쟁)</td>
+</tr>
+<tr>
+<td>ScaNN</td>
+<td><code>scann</code> (pip)</td>
+<td>scann_partitioned</td>
+<td>CPU</td>
+<td>Google 의 CPU 강자, AVX2 gated, stretch</td>
+</tr>
+</tbody>
+</table>
+<h3>3.2 파라미터 grid (Recall-QPS 곡선용)</h3>
+<p><strong>FAISS-CPU HNSW:</strong></p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">yaml</ac:parameter><ac:plain-text-body><![CDATA[build:
+  M: [16, 32, 64]
+  efConstruction: 200
+search:
+  efSearch: [16, 32, 64, 128, 256, 512]
+]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>cuVS IVF-PQ:</strong></p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">yaml</ac:parameter><ac:plain-text-body><![CDATA[build:
+  n_lists: [1024, 4096, 16384]
+  pq_dim: 16     # PQ subquantizer 수 (dim=128 → 8-dim subvector)
+  pq_bits: 8     # PQ code 비트
+search:
+  n_probes: [1, 4, 16, 64, 256]
+]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>cuVS CAGRA:</strong></p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">yaml</ac:parameter><ac:plain-text-body><![CDATA[build:
+  graph_degree: [32, 64, 128]
+  intermediate_graph_degree: 96
+search:
+  itopk_size: [32, 64, 128, 256, 512]
+]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>ScaNN:</strong></p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">yaml</ac:parameter><ac:plain-text-body><![CDATA[build:
+  num_leaves: [1024, 4096]
+  num_leaves_to_search: [50, 200, 500]
+  reorder_size: [100, 500, 2000]
+search:
+  pre_reorder_num_neighbors: 100
+]]></ac:plain-text-body></ac:structured-macro>
+<p>각 grid 점에서 (Recall, QPS) 한 쌍 → Recall-QPS plot 의 한 점.</p>
+<h3>3.3 빌드 시점 측정</h3>
+<p>빌드는 1회만 실행하고 결과를 <code>indexes/&lt;retriever&gt;/&lt;dataset&gt;/&lt;param&gt;/</code> 에
+직렬화. 다음을 <code>results/&lt;exp_id&gt;/build.json</code> 에 기록:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">json</ac:parameter><ac:plain-text-body><![CDATA[{
+  "retriever": "cuvs_cagra",
+  "dataset": "ml25m",
+  "params": {"graph_degree": 64, "intermediate_graph_degree": 96},
+  "wall_seconds": 12.3,
+  "peak_host_mb": 1450,
+  "peak_device_mb": 880,
+  "index_disk_bytes": 31_457_280,
+  "num_items": 62423,
+  "dim": 128,
+  "build_started": "2026-05-21T13:02:18+09:00",
+  "hardware": "H100_SXM5_80G"
+}
+]]></ac:plain-text-body></ac:structured-macro>
+<hr />
+<h2>4. 평가 프로토콜</h2>
+<h3>4.1 Query set 생성</h3>
+<ol>
+<li><code>checkpoints/&lt;exp_id&gt;/user_tower.pt</code> 로 test split 의 user 들에 대해
+   user embedding 일괄 계산 → <code>queries.npy</code> (shape: <code>(num_test_users, 128)</code>).</li>
+<li>같은 user_id 의 ground-truth item 집합 (test split 의 미래 interaction)
+   → <code>gt.pkl</code>.</li>
+</ol>
+<h3>4.2 Quality 평가 (offline)</h3>
+<p>전체 query 를 한 배치로 retriever 에 dispatch:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[ids, scores = retriever.search(queries, k=100)
+]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li>Recall@10, Recall@100, NDCG@10, HitRate@10, MRR 계산.</li>
+<li>동시에 <code>exact_topk.npy</code> 와의 일치율로 <strong>Recall@K vs exact</strong> 도 계산
+  (ANN-isolation 메트릭).</li>
+</ul>
+<h3>4.3 Latency profiling</h3>
+<p><code>01_metric_design.md §3.2</code> 의 프로토콜 그대로:</p>
+<ul>
+<li><strong>Single-stream</strong>: warmup 1000, measure 5000, 직렬, <code>cudaStreamSynchronize</code>.
+  → P50/P95/P99 latency.</li>
+<li><strong>Max-throughput</strong>: warmup 1000, measure ≥30초 또는 ≥10000 queries.
+  concurrency ∈ {1, 4, 16, 64}.
+  → QPS, mean latency.</li>
+</ul>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">python</ac:parameter><ac:plain-text-body><![CDATA[# 의사 코드
+for concurrency in [1, 4, 16, 64]:
+    warmup(retriever, queries, n=1000, batch=concurrency)
+    start_power_sampler(retriever.device)
+    t0 = time.monotonic()
+    n_done = 0
+    while time.monotonic() - t0 < 30 or n_done < 10_000:
+        ids, scores = retriever.search(batch_of_queries(concurrency), k=10)
+        n_done += concurrency
+    elapsed = time.monotonic() - t0
+    power_trace = stop_power_sampler()
+    record(concurrency, n_done / elapsed, p50, p95, p99, power_trace)
+]]></ac:plain-text-body></ac:structured-macro>
+<h3>4.4 Power sampling</h3>
+<ul>
+<li><code>pynvml.nvmlDeviceGetPowerUsage</code>, sample interval 100 ms.</li>
+<li>baseline idle: 측정 시작 5초 전, GPU idle 시 평균.</li>
+<li>결과: 평균 net power, peak power, integration energy.</li>
+</ul>
+<h3>4.5 Hardware 캡처 (재현용)</h3>
+<p>각 실행 시 다음을 <code>results/&lt;exp_id&gt;/hardware.json</code> 에 기록:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">json</ac:parameter><ac:plain-text-body><![CDATA[{
+  "gpu": {
+    "name": "NVIDIA H100 80GB HBM3",
+    "uuid": "GPU-XXXXX",
+    "driver": "550.54.15",
+    "cuda": "12.4",
+    "vbios": "96.00.74.00.1f",
+    "smi_dump": "<output of nvidia-smi -q>"
+  },
+  "cpu": {
+    "model": "AMD EPYC 7763 64-Core",
+    "cores": 128,
+    "threads": 256,
+    "cpuinfo_dump": "<output of lscpu>"
+  },
+  "os": {"kernel": "5.15.0-1083-nvidia", "distro": "Ubuntu 22.04"},
+  "captured_at": "2026-05-21T13:02:18+09:00"
+}
+]]></ac:plain-text-body></ac:structured-macro>
+<hr />
+<h2>5. 실험 변수와 그 의미</h2>
+<table>
+<thead>
+<tr>
+<th>변수</th>
+<th>값 (Phase 1)</th>
+<th>변경 시 가설</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dataset</td>
+<td>ML-25M, Amazon-Beauty</td>
+<td>corpus size 가 작으면 retriever 간 차이가 흐려질 것</td>
+</tr>
+<tr>
+<td>Retriever</td>
+<td>FAISS-CPU HNSW, cuVS IVF-PQ, cuVS CAGRA</td>
+<td>retriever 별로 Pareto frontier 위치 다를 것</td>
+</tr>
+<tr>
+<td>Hardware</td>
+<td>1× H100 SXM5 80G + 2× EPYC 7763</td>
+<td>(sweep 제외)</td>
+</tr>
+<tr>
+<td>k</td>
+<td>10, 100</td>
+<td>k 가 클수록 모든 retriever 의 recall 상승, QPS 감소</td>
+</tr>
+<tr>
+<td>Concurrency</td>
+<td>1, 4, 16, 64</td>
+<td>GPU 는 high concurrency 에서 유리</td>
+</tr>
+<tr>
+<td>Dim</td>
+<td>128</td>
+<td>(Phase 1 고정)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>6. 결과 산출물 매핑</h2>
+<table>
+<thead>
+<tr>
+<th>측정</th>
+<th>파일</th>
+<th>작성자</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Per-run raw</td>
+<td><code>results/&lt;exp_id&gt;/{config.yaml, metrics.json, latency.csv, build.json, hardware.json, power_trace.csv}</code></td>
+<td><code>pipelines/evaluate.py</code></td>
+</tr>
+<tr>
+<td>Aggregate</td>
+<td><code>results/aggregate.csv</code></td>
+<td><code>pipelines/report.py</code></td>
+</tr>
+<tr>
+<td>Markdown</td>
+<td><code>reports/baseline_results.md</code></td>
+<td><code>pipelines/report.py</code></td>
+</tr>
+<tr>
+<td>Recall-QPS plot</td>
+<td><code>reports/figures/recall_vs_qps.png</code></td>
+<td><code>pipelines/report.py</code></td>
+</tr>
+<tr>
+<td>Latency CDF</td>
+<td><code>reports/figures/latency_cdf_&lt;dataset&gt;.png</code></td>
+<td><code>pipelines/report.py</code></td>
+</tr>
+<tr>
+<td>Cost bar</td>
+<td><code>reports/figures/cost_bar.png</code></td>
+<td><code>pipelines/report.py</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>7. VDPU 통합 (Phase 2) 예고</h2>
+<p>본 문서의 모든 절차는 <code>Retriever</code> 의 인터페이스 계약 (build / search /
+save / load / device_info) 위에서만 동작한다. VDPU 를 위해 추가될 코드는:</p>
+<ol>
+<li><code>reco_bench/retrievers/vdpu.py</code> — <code>Retriever</code> 의 한 서브클래스.</li>
+<li><code>configs/retrievers/vdpu.yaml</code> — VDPU 별 param grid.</li>
+<li><code>configs/cost_model.yaml</code> — <code>vdpu_*</code> SKU 행 추가.</li>
+</ol>
+<p>본 문서의 §3.2 의 grid 와 평행하는 grid 가 VDPU 에서도 정의되며, 동일
+파이프라인이 그대로 실행된다.</p>
+<hr />
+<h2>8. 변경 이력</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-20</td>
+<td>초안 작성</td>
+<td>Phase 0 초기 설계</td>
+</tr>
+</tbody>
+</table>

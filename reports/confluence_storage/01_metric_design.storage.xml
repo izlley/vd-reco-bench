@@ -1,0 +1,365 @@
+<h1>01 · 메트릭 설계 (Metric Design)</h1>
+<blockquote>
+<p>이 문서는 <code>reco_bench</code> 가 측정하는 모든 메트릭의 <strong>정확한 수식 정의</strong>
+와 <strong>측정 프로토콜</strong> 을 정의한다. 본 벤치마크의 핵심 영업 narrative
+인 "VDPU 가 GPU 대비 6~7× 가성비" 를 reader 가 검증 가능하게 만드는
+것이 이 문서의 목적이다.</p>
+</blockquote>
+<h2>1. 메트릭 카테고리 4종</h2>
+<table>
+<thead>
+<tr>
+<th>카테고리</th>
+<th>무엇을 보여주는가</th>
+<th>누구를 위한 것인가</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Quality</strong></td>
+<td>retrieval 결과가 추천 품질을 얼마나 보존하는가</td>
+<td>추천 시스템 엔지니어 / 데이터 사이언티스트</td>
+</tr>
+<tr>
+<td><strong>System</strong></td>
+<td>같은 retrieval 을 얼마나 빠르고 가볍게 하는가</td>
+<td>시스템 엔지니어 / SRE</td>
+</tr>
+<tr>
+<td><strong>Trade-off</strong></td>
+<td>quality 와 system 의 동시 최적 가능 영역</td>
+<td>의사결정자</td>
+</tr>
+<tr>
+<td><strong>Cost</strong></td>
+<td>동일 품질을 얻는 데 드는 돈 / 전력</td>
+<td>인프라 책임자 / 영업</td>
+</tr>
+</tbody>
+</table>
+<p>각 카테고리는 모두 같은 retrieval 결과를 다른 각도에서 본 것이며,
+<strong>iso-recall 비교 프레임</strong> 이 이 네 가지를 묶는 접착제 역할을 한다.</p>
+<hr />
+<h2>2. Quality 메트릭</h2>
+<h3>2.1 정의</h3>
+<p>사용자 <code>u</code> 에 대한 ground-truth 정답 item 집합을 <code>\mathcal{G}_u</code>, 모델이
+반환한 top-<code>K</code> 결과를 <code>\mathcal{R}_u^K</code> 라고 한다. 전체 평가 사용자
+집합을 <code>\mathcal{U}_{\text{test}}</code>.</p>
+<p><strong>Recall@K</strong> (가장 중요):
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\text{Recall@K} = \frac{1}{|\mathcal{U}_{\text{test}}|}
+\sum_{u \in \mathcal{U}_{\text{test}}}
+\frac{|\mathcal{R}_u^K \cap \mathcal{G}_u|}{|\mathcal{G}_u|}]]></ac:plain-text-body></ac:structured-macro></p>
+<p><strong>HitRate@K</strong> (Recall@K 의 binarized 버전; <code>\mathcal{G}_u</code> 가 단일 item
+인 경우):
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\text{HitRate@K} = \frac{1}{|\mathcal{U}_{\text{test}}|}
+\sum_{u} \mathbb{1}\big[\mathcal{R}_u^K \cap \mathcal{G}_u \neq \emptyset\big]]]></ac:plain-text-body></ac:structured-macro></p>
+<p><strong>NDCG@K</strong> (rank-aware):
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\text{NDCG@K} = \frac{1}{|\mathcal{U}_{\text{test}}|}
+\sum_{u} \frac{\text{DCG@K}_u}{\text{IDCG@K}_u},
+\quad
+\text{DCG@K}_u = \sum_{i=1}^{K}
+\frac{\mathbb{1}[r_u(i) \in \mathcal{G}_u]}{\log_2(i+1)}]]></ac:plain-text-body></ac:structured-macro></p>
+<p><strong>MRR</strong> (가장 첫 hit 의 역수):
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\text{MRR} = \frac{1}{|\mathcal{U}_{\text{test}}|}
+\sum_{u} \frac{1}{\text{rank}(\text{first hit in } \mathcal{R}_u)}]]></ac:plain-text-body></ac:structured-macro></p>
+<h3>2.2 Ground-truth 정의</h3>
+<p>두 가지 split policy 를 모두 지원하지만 <strong>temporal global split 을
+기본</strong> 으로 한다.</p>
+<ul>
+<li><strong>Temporal global split (기본)</strong>: interaction 을 timestamp 로 정렬한
+  뒤 앞 90% 를 train, 다음 5% 를 val, 마지막 5% 를 test. 사용자별
+  cold-start 문제는 분석 축으로 분리.</li>
+<li><strong>Leave-last-N</strong>: 사용자별 마지막 N (기본 N=1) 개의 interaction 을
+  ground truth 로 사용. 작은 데이터셋의 sanity check 에 적합.</li>
+</ul>
+<p>선택 근거: 시간순 split 은 추천 시스템 실제 운영과 가장 가깝다
+(미래 정보 누설 방지). Leave-last-N 은 Microsoft <code>recommenders</code> /
+RecBole 의 표준 결과와의 비교 sanity check 용.</p>
+<h3>2.3 K 값</h3>
+<ul>
+<li><strong>K=10</strong> — 메인 보고 값. e-commerce 첫 페이지 노출 수와 정합.</li>
+<li><strong>K=100</strong> — 후속 ranker 가 받는 후보 수와 정합.</li>
+<li>두 값 모두 모든 retriever 에 대해 보고한다.</li>
+</ul>
+<h3>2.4 모델 오차 vs ANN 오차 분리</h3>
+<p>ANN 비교가 의미를 가지려면 <strong>모델 오차</strong> 가 일정해야 한다. 따라서:</p>
+<ol>
+<li>학습된 Two-tower 의 item embedding 을 사용해, brute-force
+   <code>torch.matmul</code> 로 <strong>exact top-K 정답 집합</strong> <code>\mathcal{R}_u^{K,\star}</code>
+   를 한 번 계산하고 캐시한다.</li>
+<li>각 approximate retriever 의 결과 <code>\mathcal{R}_u^{K,\text{ANN}}</code> 의
+   품질은 <strong><code>\mathcal{R}_u^{K,\star}</code> 에 대한 일치율</strong> 인
+   <strong>Recall@K vs exact</strong> 로 별도 보고한다.</li>
+<li><strong>Recall@K vs ground truth</strong> 는 모델 오차 + ANN 오차의 합이고,
+   <strong>Recall@K vs exact</strong> 는 순수 ANN 오차이다.</li>
+<li>비용 비교는 <strong>Recall@K vs exact</strong> 기준으로 한다 (모델 영향 제거).</li>
+</ol>
+<p>이 분리는 ann-benchmarks 의 정신을 추천 도메인에 적용한 것이며,
+"VDPU 가 빠른 게 모델이 나빠서인가 ANN 이 좋아서인가" 같은 의심을
+근원에서 차단한다.</p>
+<hr />
+<h2>3. System 메트릭</h2>
+<h3>3.1 정의</h3>
+<ul>
+<li><strong>QPS (Queries Per Second)</strong>: 정상 상태에서의 처리량. concurrency
+  설정 별로 따로 보고.</li>
+<li><strong>Latency (P50, P95, P99)</strong>: 단일 query 의 종단간 retrieval 지연
+  (CUDA event 기반).</li>
+<li><strong>Index build time</strong>: item embedding 전체에 대해 인덱스 빌드에
+  소요된 wall-clock 시간.</li>
+<li><strong>Memory (host pinned, device peak)</strong>: 인덱스 + working set 의
+  peak 메모리.</li>
+<li><strong>Energy</strong>: query 부하 중 평균 전력 (<code>nvidia-smi power.draw</code> /
+  RAPL / VDPU 의 동등 API) 의 적분.</li>
+<li><strong>Throughput-per-Watt</strong>: QPS / (평균 전력 - idle 전력).</li>
+</ul>
+<h3>3.2 측정 프로토콜</h3>
+<p>MLPerf Inference 의 두 가지 시나리오를 따른다:</p>
+<h4>3.2.1 Single-stream (latency 모드)</h4>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[warmup: 1000 query (결과 폐기)
+measure: 5000 query (단일 query 직렬 실행)
+]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li>query 마다 <code>cudaEventRecord</code> 로 wall-clock 측정 → P50/P95/P99 계산.</li>
+<li>동기화: 각 query 후 <code>cudaStreamSynchronize</code> (또는 가속기 동등 API).</li>
+<li>QPS = 1 / mean(latency).</li>
+</ul>
+<h4>3.2.2 Max-throughput (QPS 모드)</h4>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[concurrency ∈ {1, 4, 16, 64}
+warmup: 1000 query (결과 폐기)
+measure: 30 초간 가능한 만큼 (또는 최소 10000 query)
+]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li>query 를 N 개 동시에 dispatch 하고, 완료된 batch 의 query 수 / 경과
+  시간 = QPS.</li>
+<li>측정 중 throttling 여부를 GPU clock 으로 검증.</li>
+</ul>
+<h3>3.3 Concurrency 의미</h3>
+<p>추천 system 에서 concurrency 는 사용자 부하의 spike 와 batching 정책에
+대응한다. VDPU 의 fixed-batch sweet spot 이 있을 가능성을 고려하여
+4가지 모두 측정하고, retriever 별로 최적 concurrency 를 보고한다.</p>
+<h3>3.4 Energy 측정 방법론</h3>
+<ul>
+<li><strong>샘플링</strong>: <code>pynvml.nvmlDeviceGetPowerUsage</code> 를 100 ms 간격으로 호출.</li>
+<li><strong>Baseline</strong>: query dispatch 시작 5초 전 idle 전력의 평균.</li>
+<li><strong>적분 윈도우</strong>: 측정 구간 (warmup 제외) 전체.</li>
+<li><strong>결과</strong>:</li>
+<li><code>E_{\text{run}} = \int P(t)\,dt</code> (Wh).</li>
+<li><code>\bar{P} = E_{\text{run}} / T</code> (W).</li>
+<li><code>\bar{P}_{\text{net}} = \bar{P} - P_{\text{idle}}</code>.</li>
+<li>W/QPS = <code>\bar{P}_{\text{net}}</code> / QPS.</li>
+</ul>
+<p>VDPU 측정 시에도 <strong>동일 샘플 레이트, 동일 idle 정의, 동일 적분 윈도우</strong>
+를 사용한다. 그 외의 비교는 의미가 없다.</p>
+<h3>3.5 Index build time 의 위치</h3>
+<p>Build time 은 일회성 비용이라 retrieval 비용 비교에 직접 들어가지
+않지만, <strong>VDPU 가 build 마저 가속한다면</strong> 그 자체로 영업 포인트가 될 수
+있다. 별도 표로 보고한다.</p>
+<hr />
+<h2>4. Cost 메트릭</h2>
+<h3>4.1 핵심 정의: Iso-recall cost ratio</h3>
+<p>VDPU 의 6~7× 주장의 형식적 정의:</p>
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\text{IsoRecallCostRatio}_{R=r}
+= \frac{\$/\text{QPS}\,|\, \text{baseline at Recall@K vs exact} = r}
+       {\$/\text{QPS}\,|\, \text{VDPU at Recall@K vs exact} = r}]]></ac:plain-text-body></ac:structured-macro>
+<p>여기서:</p>
+<ul>
+<li><code>r</code> 은 비교가 의미 있는 recall 구간. <strong>기본 <code>r \in \{0.90, 0.95\}</code></strong>.</li>
+<li>baseline 은 비교 대상 중 <strong>가장 저렴한 GPU 구성</strong> (winner-takes-all 적
+  비교가 영업에 의미). cuVS CAGRA H100 이 첫 후보.</li>
+<li><code>\</code>/\text{QPS}$ 는 §4.2 에서 정의.</li>
+<li>양쪽 retriever 의 파라미터 (HNSW efSearch, IVF nprobe, CAGRA itopk
+  등) 를 그 recall 에 도달하는 <strong>각각의 가장 빠른 설정</strong> 으로 고정.</li>
+</ul>
+<h3>4.2 $/QPS 의 정의</h3>
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\$/\text{QPS} = \frac{C_{\text{hourly}}}{\text{QPS} \cdot 3600}]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li><code>C_{\text{hourly}}</code> — 해당 하드웨어의 <strong>시간당 비용</strong> (cloud SKU 가격
+  또는 on-prem TCO 기준).</li>
+<li>분자/분모 단위가 $/hr 와 query/sec 이므로 결과 단위는 $/query.</li>
+<li>보고 시 1M queries 단위 (<code>$/1M queries</code>) 가 더 직관적이다:
+  <code>\</code>/1M = \<code>/\text{QPS} \times 10^6</code>.</li>
+</ul>
+<h3>4.3 <code>C_{\text{hourly}}</code> 의 출처</h3>
+<p><code>configs/cost_model.yaml</code> 에 SKU 별로 다음을 핀한다:</p>
+<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">yaml</ac:parameter><ac:plain-text-body><![CDATA[sku:
+  h100_sxm5_80g_aws_p5:
+    hourly_usd: 4.90      # AWS p5.48xlarge / 8GPU 기준 단가
+    tdp_watt: 700
+    snapshot_date: 2026-05-20
+    source_url: https://aws.amazon.com/ec2/instance-types/p5/
+  epyc_7763_2s_aws_c7a:
+    hourly_usd: 1.42
+    tdp_watt: 280
+    snapshot_date: 2026-05-20
+    source_url: https://aws.amazon.com/ec2/instance-types/c7a/
+  vdpu_fpga:
+    hourly_usd: TBD
+    tdp_watt: TBD
+    snapshot_date: TBD
+    source_url: TBD
+]]></ac:plain-text-body></ac:structured-macro>
+<ul>
+<li>가격 스냅샷 날짜를 명시 (가격은 시간에 따라 변한다).</li>
+<li>출처 URL 기록.</li>
+<li>VDPU 행은 Phase 2 에서 채운다.</li>
+</ul>
+<h3>4.4 부가 cost 지표</h3>
+<ul>
+<li><strong>$/1M queries</strong> — 운영자가 직관적으로 읽는 단위.</li>
+<li><strong>W/QPS</strong> — 전력 효율의 직접 지표 (DC PUE 보정 가능).</li>
+<li><strong>$/Recall-point</strong> — 동일 비용으로 얼마나 더 정확해지는지의 역 관점.
+  Phase 2 에서 Pareto 곡선 위의 등비용선으로 시각화.</li>
+</ul>
+<h3>4.5 TCO 확장 (Phase 2 산출물)</h3>
+<p>영업 자료용으로 3년 amortize 한 TCO 도 계산한다:</p>
+<ul>
+<li>하드웨어 CapEx (구매가).</li>
+<li>전력 OpEx (kWh 단가 × 평균 전력 × 가동률).</li>
+<li>DC 공간/냉각 OpEx (PUE).</li>
+<li>1B queries/day workload 가정의 연간 비용.</li>
+</ul>
+<p>수식과 가정의 세부는 <code>04_vdpu_value_proposition.md</code> 에서 다룬다.</p>
+<hr />
+<h2>5. Trade-off 표현: Recall-QPS Pareto 곡선</h2>
+<h3>5.1 표현 방식</h3>
+<p>ann-benchmarks 의 표준 컨벤션을 따른다:</p>
+<ul>
+<li>x 축: QPS (log scale).</li>
+<li>y 축: Recall@K (linear, [0, 1]).</li>
+<li>점: (retriever, hardware, parameter grid 의 한 점).</li>
+<li>색: retriever × hardware 조합.</li>
+<li>Pareto frontier: 각 색에 대해 점선으로 우상단 frontier 표시.</li>
+</ul>
+<h3>5.2 Pareto 정의</h3>
+<p>retriever <code>R_i</code> 의 점 <code>(\text{Recall}_i, \text{QPS}_i)</code> 가 Pareto-dominant
+라는 것은:
+<ac:structured-macro ac:name="noformat"><ac:plain-text-body><![CDATA[\nexists\, j \neq i:\ \text{Recall}_j \geq \text{Recall}_i \land
+\text{QPS}_j \geq \text{QPS}_i \land
+(\text{Recall}_j > \text{Recall}_i \lor \text{QPS}_j > \text{QPS}_i)]]></ac:plain-text-body></ac:structured-macro></p>
+<p>같은 retriever 내에서만 dominance 를 따지므로, 각 색깔별 frontier 가
+자연스럽게 분리된다.</p>
+<h3>5.3 Sweep 파라미터</h3>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>Sweep 축</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FAISS HNSW</td>
+<td>M ∈ {16, 32, 64}, efSearch ∈ {16, 32, 64, 128, 256, 512}</td>
+</tr>
+<tr>
+<td>FAISS IVF-PQ</td>
+<td>nlist ∈ {1k, 4k, 16k}, nprobe ∈ {1, 4, 16, 64, 256}</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>graph_degree ∈ {32, 64, 128}, itopk ∈ {32, 64, 128, 256, 512}</td>
+</tr>
+<tr>
+<td>ScaNN</td>
+<td>num_leaves ∈ {1k, 4k}, reorder_size ∈ {100, 500, 2000}</td>
+</tr>
+</tbody>
+</table>
+<p>각 grid 점에서 (Recall, QPS) 한 쌍 → 곡선의 한 점.</p>
+<h3>5.4 비교 시 함정 — "iso-recall trap"</h3>
+<blockquote>
+<p><strong>단일 숫자만 보고 비교 금지.</strong> 예: "VDPU 24k QPS vs GPU 4k QPS, 6×!"
+이건 두 시스템이 동일 recall 에서 측정되었을 때만 진실이다.</p>
+</blockquote>
+<p><strong>모든 비교 청구는 반드시 (Recall, QPS, hardware) 3-튜플로 라벨링.</strong>
+영업 자료의 헤드라인 숫자는 반드시 <code>01_metric_design.md §4.1</code> 의
+Iso-recall cost ratio 정의를 따른다.</p>
+<hr />
+<h2>6. 메트릭 → 보고 산출물 매핑</h2>
+<table>
+<thead>
+<tr>
+<th>메트릭</th>
+<th>보고 위치</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Recall@{10,100} vs ground truth</td>
+<td><code>baseline_results.md</code> 메인 표</td>
+</tr>
+<tr>
+<td>Recall@{10,100} vs exact</td>
+<td><code>baseline_results.md</code> ANN-isolation 표</td>
+</tr>
+<tr>
+<td>NDCG@10, HitRate, MRR</td>
+<td>부록 표</td>
+</tr>
+<tr>
+<td>QPS, P50/95/99 latency</td>
+<td>메인 표 + Recall-QPS plot</td>
+</tr>
+<tr>
+<td>Index build, memory</td>
+<td>부록 표</td>
+</tr>
+<tr>
+<td>Energy, W/QPS</td>
+<td>메인 표 (Phase 2 부터 신뢰 가능)</td>
+</tr>
+<tr>
+<td>Recall-QPS Pareto plot</td>
+<td><code>reports/figures/recall_vs_qps.png</code></td>
+</tr>
+<tr>
+<td>Latency CDF plot</td>
+<td><code>reports/figures/latency_cdf.png</code></td>
+</tr>
+<tr>
+<td>$/QPS, $/1M queries</td>
+<td>메인 표 + 비용 막대 그래프</td>
+</tr>
+<tr>
+<td>Iso-recall cost ratio</td>
+<td><code>04_vdpu_value_proposition.md</code> 헤드라인 (Phase 2)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>7. 측정 무결성 (integrity) 체크리스트</h2>
+<p>이 체크리스트는 Phase 1 의 <code>pipelines/evaluate.py</code> 가 자동으로 검증해야
+하는 항목이다. 실패 시 측정 결과는 폐기.</p>
+<ul>
+<li>[ ] Warmup query 가 측정 결과에서 제외되었는가</li>
+<li>[ ] CUDA / 가속기 sync 가 각 query 종료 시점에 호출되었는가</li>
+<li>[ ] Background process (다른 GPU 사용자) 가 없는가
+  (<code>nvidia-smi pmon</code>)</li>
+<li>[ ] GPU clock throttling 이 없는가 (측정 중 clock 변동 &lt; 5%)</li>
+<li>[ ] Query 결과의 hash 가 retriever 간 일치 가능한가 (재현성)</li>
+<li>[ ] Exact top-K cache 가 valid 한가 (item embedding hash 일치)</li>
+<li>[ ] Cost model 의 snapshot 날짜가 결과 기록에 포함되었는가</li>
+<li>[ ] Hardware info (lspci/nvidia-smi/nvcc dump) 가 결과 디렉토리에
+      덤프되었는가</li>
+</ul>
+<hr />
+<h2>8. 변경 이력</h2>
+<p>이 문서가 바뀌면 <code>reports/history/</code> 에 entry 가 추가되어야 한다.
+메트릭 정의 변경은 과거 결과의 호환성을 깰 수 있으므로 신중히.</p>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-20</td>
+<td>초안 작성</td>
+<td>Phase 0 초기 설계</td>
+</tr>
+</tbody>
+</table>

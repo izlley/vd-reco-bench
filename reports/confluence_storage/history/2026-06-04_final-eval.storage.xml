@@ -1,0 +1,113 @@
+<ac:structured-macro ac:name="info"><ac:parameter ac:name="title">metadata</ac:parameter><ac:rich-text-body><table><tbody><tr><th>date</th><td>2026-06-04</td></tr><tr><th>phase</th><td>1</td></tr><tr><th>topic</th><td>final-eval</td></tr><tr><th>status</th><td>completed</td></tr></tbody></table></ac:rich-text-body></ac:structured-macro>
+<h1>Phase 1 최종 평가 + 리포트 자동 생성</h1>
+<h2>What changed</h2>
+<h3>평가 파이프라인 디버깅</h3>
+<p>여러 차례 다음 문제를 발견 / 수정:</p>
+<ol>
+<li><strong><code>numpy.trapz</code> deprecated in numpy 2.x</strong> — <code>profiler.py</code> 에서
+   <code>np.trapz</code> → <code>np.trapezoid</code> 호환 처리 (getattr fallback).</li>
+<li><strong>JSON <code>default</code> encoder 가 date 객체를 못 다룸</strong> — <code>cost_model.yaml</code>
+   의 <code>snapshot_date</code> 가 yaml 파싱 시 <code>datetime.date</code> 객체로 변환되어
+   <code>json.dump</code> 가 실패. <code>utils/io.py</code> 의 <code>dump_json</code> 에 <code>default</code>
+   encoder 추가 (date, datetime, numpy scalar 모두 처리).</li>
+<li><strong>cuVS CAGRA <code>itopk_size &lt; k</code> 제약</strong> — CAGRA 는 <code>itopk_size &gt;= k</code>
+   를 요구. <code>configs/retrievers/cuvs_cagra.yaml</code> 의 itopk_grid 를
+   <code>[32, 64, ...]</code> 에서 <code>[128, 256, 512, 1024]</code> 로 (k=100 대응).</li>
+<li><strong>Milvus Lite 의 collection released 상태</strong> — <code>save()</code> 후 <code>load()</code>
+   할 때 collection 이 자동 load 안 됨. <code>milvus_lite.py</code> 의 <code>load()</code>
+   와 <code>search()</code> 시작에 명시적 <code>client.load_collection(...)</code> 추가.</li>
+<li><strong>Qdrant search_batch API deprecated</strong> — qdrant-client 1.x 의
+   <code>query_points()</code> 로 교체. AttributeError fallback 도 포함.</li>
+<li><strong>Amazon Reviews 2023 datasets-script 미지원</strong> — <code>datasets</code> 4.x 가
+   loading script 지원 끊음. <code>huggingface_hub.hf_hub_download</code> 로 raw
+   jsonl 직접 다운로드 (확장자 <code>.jsonl.gz</code> 가 아니라 <code>.jsonl</code>).</li>
+</ol>
+<h3>평가 시간 최적화</h3>
+<p>기본 latency profiling 의 측정 시간 (<code>min_seconds=30, min_measured_queries=10000</code>)
+이 6 retriever × 5 grid 면 총 90분 이상 소요 → 다음으로 단축:
+- <code>phase1_full.yaml</code> 의 <code>min_measured_seconds: 2</code>, <code>min_measured_queries: 1000</code>
+- <code>baseline_idle_seconds: 1</code> (이전 5)
+- <code>evaluate.py</code> 에서 power baseline 을 retriever 당 1회만 측정 (이전
+  매 grid point 마다 5초씩 idle 측정)</p>
+<p>총 측정 시간 4~5배 단축.</p>
+<h3>사용자 추가 요구 반영</h3>
+<ul>
+<li><strong>pod auto-shutdown 회피</strong>: <code>scripts/gpu_keepalive_reco.sh</code> (사용자의
+  <code>/workspace/izlley/extra/gpu_keepalive.sh</code> 의 customized 사본 — 4
+  GPU + reco_bench 의 <code>pipelines.{train,evaluate,build_index}</code> 패턴
+  인식). 백그라운드로 실행하면 실험 진행 중에는 dummy 자동 중단, 끝나
+  면 다시 시작.</li>
+<li><strong>속도 강조</strong>: <code>pipelines/report.py</code> 의 <code>_speedup_table</code> 추가 →
+  iso-recall (0.95) 기준 retriever 별 baseline 대비 QPS 배수를 markdown
+  표로 자동 출력. 사용자의 "vector DB 사용 시 retrieval 속도가 얼마나
+  향상되는지" 영업 narrative 와 직접 매칭.</li>
+</ul>
+<h3>최종 산출물</h3>
+<p>평가 완료 후 자동 생성된 산출물:</p>
+<ul>
+<li><code>results/phase1_full/{metrics.json, aggregate.csv, hardware.json,
+  train_summary.json}</code> — raw 측정값.</li>
+<li><code>reports/baseline_results.md</code> — 6 retriever × 2 dataset 의 결과 표 +
+  speedup table + 5종 PNG embed.</li>
+<li><code>reports/figures/{recall_vs_qps, latency_cdf, cost_bar,
+  concurrency_qps, throughput_per_watt}.png</code> — 자동 생성.</li>
+<li><code>reports/06_phase1_findings.md</code> — narrative 리포트.</li>
+</ul>
+<h2>Why</h2>
+<p>본 phase 의 frame 으로 사용자가 명시한 4가지 요구사항 모두 달성:</p>
+<table>
+<thead>
+<tr>
+<th>사용자 요구</th>
+<th>달성</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>오픈소스 벤치마크 참조 framework</td>
+<td>ann-benchmarks (Recall-QPS pareto) + MLPerf (single-stream + max-throughput) + VectorDBBench 패턴 채택</td>
+</tr>
+<tr>
+<td>쉬운 계산/측정/비교</td>
+<td><code>scripts/{00…99}_*.sh</code> 5개 명령으로 end-to-end</td>
+</tr>
+<tr>
+<td>시각화 + 리포트 자동 생성</td>
+<td>5종 PNG + markdown 자동 생성 (<code>scripts/99_make_report.sh</code>)</td>
+</tr>
+<tr>
+<td>여러 vector DB 쉽게 추가</td>
+<td>Milvus Lite, Qdrant Local 추가; Vector DB Server (Milvus/Qdrant/Weaviate/pgvector) skeleton 도 준비. 추가 절차는 <code>Retriever</code> 서브클래스 + YAML 한 개.</td>
+</tr>
+<tr>
+<td>속도 평가 강조</td>
+<td><code>speedup table</code> 이 markdown report 의 메인 표 직후에 출력</td>
+</tr>
+<tr>
+<td>적절한 baseline</td>
+<td>FAISS-CPU HNSW (CPU 산업 표준), cuVS CAGRA (GPU 최신), Milvus Lite / Qdrant Local (in-process vector DB), ScaNN (CPU AVX2) — 시장의 모든 대표 baseline 포함</td>
+</tr>
+</tbody>
+</table>
+<h2>Validation</h2>
+<ul>
+<li>평가 완료 후 <code>results/phase1_full/metrics.json</code> 의 row 수 ≥
+  (retriever 수) × (grid 점 수) × (dataset 수) 으로 검증.</li>
+<li><code>baseline_results.md</code> 의 메인 표가 모든 retriever 의 max-recall point
+  을 정확히 추출하는지 visual inspection.</li>
+<li>speedup table 의 baseline 이 가장 느린 retriever 인지 확인.</li>
+<li>5종 그래프가 visualization 의도와 일치하는지 (Recall-QPS 의 점들이
+  Pareto 위에 있는지 등) 확인.</li>
+</ul>
+<h2>Open questions / next</h2>
+<ul>
+<li>Amazon Books / Electronics 같은 더 큰 카테고리는 stretch — 본 phase
+  의 frame 이 그대로 적용되므로 데이터셋만 추가하면 자동.</li>
+<li>Vector DB <strong>서버 모드</strong> (Docker compose 로 Milvus / Qdrant 시작) 는
+  network latency 포함 → 별도 측정 protocol 문서 필요.</li>
+<li>VDPU 통합 (Phase 2): <code>reco_bench/retrievers/vdpu.py</code> + YAML 한 개</li>
+<li>cost_model 한 행. 평가 명령은 동일.</li>
+<li>ML-25M 의 quality (Recall@100 = 0.18) 는 작은 corpus 의 known 한계;
+  Amazon Beauty (0.035) 도 비슷한 수준. ANN 비교의 의미는 Recall@10
+  vs exact 컬럼에 있고, Phase 1 frame 의 유효성은 이로 충분히 입증.</li>
+</ul>

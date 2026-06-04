@@ -1,0 +1,77 @@
+# reports/confluence_storage/
+
+`reports/` 의 markdown 문서를 **Confluence Storage Format** (XHTML 기반)
+으로 변환한 사본이다. wiki markup (`reports/confluence/`) 과 달리
+`<ac:structured-macro>` 등 Confluence 네임스페이스 태그를 사용하며,
+**REST API 의 `body.storage.value`** 에 그대로 넣거나 페이지 본문으로
+import 할 수 있다. 원본은 `reports/` 의 `.md` 파일이다.
+
+## 세 가지 export 형식 비교
+
+| 디렉토리 | 형식 | 용도 |
+|---|---|---|
+| `reports/` | Markdown | 원본 (source of truth) |
+| `reports/html/` | standalone HTML | 브라우저 열람, 정적 호스팅 |
+| `reports/confluence/` | Wiki Markup (legacy) | 편집기 "Insert Wiki Markup" 붙여넣기 |
+| `reports/confluence_storage/` | Storage Format (XHTML) | REST API 업로드, 페이지 본문 |
+
+## 생성 방법
+
+```bash
+python scripts/md_to_confluence_storage.py            # 전체
+python scripts/md_to_confluence_storage.py <file.md>  # 단일 파일
+```
+
+`.storage.xml` 파일은 생성물이므로 직접 편집하지 않는다 (원본 `.md` 를
+고치고 재생성).
+
+## Confluence 에 올리는 법
+
+### 방법 1 — REST API (권장)
+
+```bash
+curl -u <user>:<api_token> -X POST \
+  "https://<your-domain>.atlassian.net/wiki/rest/api/content" \
+  -H "Content-Type: application/json" \
+  -d @- <<JSON
+{
+  "type": "page",
+  "title": "reco_bench · 01 메트릭 설계",
+  "space": { "key": "<SPACE_KEY>" },
+  "body": { "storage": {
+    "value": $(python -c "import json,sys; print(json.dumps(open('reports/confluence_storage/01_metric_design.storage.xml').read()))"),
+    "representation": "storage"
+  }}
+}
+JSON
+```
+
+### 방법 2 — 수동
+
+페이지 편집 → `...` → **Insert** → "Other macros" 가 아니라, 신규
+에디터에서는 storage format 직접 붙여넣기가 막혀 있을 수 있다. 그 경우
+REST API 또는 Confluence Data Center 의 source editor 를 사용.
+
+## 변환 매핑
+
+| Markdown | Storage Format |
+|---|---|
+| 제목/리스트/강조/표 | 표준 XHTML (`<h1>`, `<ul>`, `<strong>`, `<table>` ...) |
+| ` ```lang … ``` ` | `<ac:structured-macro ac:name="code">` + CDATA |
+| frontmatter | `<ac:structured-macro ac:name="info">` 패널 |
+| 블록 수식 `$$…$$` | `<ac:structured-macro ac:name="noformat">` (raw TeX) |
+| 인라인 수식 `$…$` | `<code>…</code>` |
+| 이미지 `![](figures/x.png)` | `<ac:image><ri:attachment ri:filename="x.png"/></ac:image>` |
+
+## 알려진 한계
+
+- **이미지**: `<ri:attachment>` 매크로는 해당 파일명이 **그 Confluence
+  페이지에 첨부**되어 있을 때만 표시된다. `reports/figures/*.png` 를
+  페이지에 먼저 attach 해야 한다 (REST API 의 attachment 엔드포인트).
+- **LaTeX**: `{noformat}` 으로 raw TeX 소스만 보인다. 렌더하려면
+  Confluence LaTeX 매크로 플러그인 설치 후 `<ac:structured-macro
+  ac:name="latex">` 로 교체.
+- **내부 링크**: storage format 의 페이지 간 링크(`<ac:link>`)는 대상
+  페이지 제목에 의존하므로 자동 변환하지 않았다. `.md` → `.html` anchor
+  로만 rewrite 했으니, Confluence 업로드 후 필요 시 수동으로 `<ac:link>`
+  로 교체.

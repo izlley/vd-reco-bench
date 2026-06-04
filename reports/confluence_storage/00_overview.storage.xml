@@ -1,0 +1,325 @@
+<h1>00 · 개요 (Overview)</h1>
+<blockquote>
+<p>이 문서는 <code>reco_bench</code> 의 진입 문서이다. 처음 보는 reader 가 30분 안에
+본 벤치마크의 목적, 범위, 비범위, 그리고 핵심 측정 결과의 의미를
+이해할 수 있도록 작성되었다.</p>
+</blockquote>
+<h2>1. 한 줄 요약</h2>
+<p><code>reco_bench</code> 는 <strong>Two-tower 추천 시스템의 ANN 검색 단계</strong> 의 비용 효율을
+<strong>iso-recall (동일 recall) 기준</strong> 으로 측정하는 공개 벤치마크이며,
+<strong>vector-DB 가속기 (CPU / GPU / 디노티시아 VDPU) 와 오픈소스 vector DB
+서버 (Milvus, Qdrant, Weaviate 등)</strong> 를 모두 같은 프레임 안에서 공정하게
+비교할 수 있게 한다.</p>
+<h2>2. 왜 만드는가 (Motivation)</h2>
+<p>추천 시스템 inference 의 비용 구조는 두 단계로 나뉜다:</p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[                    online inference
+   ┌──────────────────────────────────────────────────────────┐
+   │                                                          │
+   │    user features ─▶ [user tower] ─▶ user embedding       │
+   │                                            │             │
+   │                                            ▼             │
+   │   (~108 items pre-computed) ──▶  [ANN top-K search] ──▶ K items
+   │                                            │             │
+   │                                            ▼             │
+   │                                    [optional reranker]   │
+   └──────────────────────────────────────────────────────────┘
+]]></ac:plain-text-body></ac:structured-macro>
+<p>대규모 서비스 (수천만~수억 item) 에서는 <strong>ANN top-K search 단계가
+inference 비용의 절대 다수를 차지</strong> 한다. user tower forward 는 단일
+embedding 한 번이지만, ANN 은 수억 item 벡터를 query 마다 훑어야 한다.</p>
+<p>따라서:</p>
+<ul>
+<li><strong>CPU + FAISS</strong> → 메모리 fit 되어도 batch 처리량/지연이 GPU 대비 열위.</li>
+<li><strong>GPU + FAISS-GPU / cuVS</strong> → 빠르지만 HBM 가격과 전력 비용이 큼.</li>
+<li><strong>VDPU (디노티시아)</strong> → 벡터-벡터 유사도와 vector-DB 자료구조 탐색에
+  특화된 가속기. 공개 주장: CPU 대비 10×, GPU 대비 6~7× 가성비.</li>
+</ul>
+<p>추천 시스템 엔지니어가 VDPU 도입 의사결정을 하려면, 자신의 워크로드와
+비슷한 조건에서의 <strong>iso-recall 비용 비교</strong> 가 필요하다. 기존 벤치마크는
+다음 중 하나의 한계를 가진다:</p>
+<ul>
+<li><strong>MLPerf DLRM, RecBole, Microsoft <code>recommenders</code></strong> — 모델 품질 위주,
+  ANN 단계가 측정 대상이 아니거나 brute-force 사용.</li>
+<li><strong>ann-benchmarks, VectorDBBench</strong> — ANN 시스템 자체는 잘 측정하지만,
+  벡터가 GloVe, SIFT, OpenAI ada-002 같은 합성/일반 텍스트 임베딩이다.
+  추천 임베딩과 분포가 다르고 (특히 popularity skew, dimensionality 선택)
+  결과의 일반화가 의심스럽다.</li>
+<li><strong>VectorDBBench</strong> — vector DB 서버를 black box 로 측정. 가속기 단위가
+  아니라 시스템 단위.</li>
+</ul>
+<p><code>reco_bench</code> 는 그 사이를 메운다: <strong>실제 Two-tower 모델을 학습 → 그 모델
+의 item embedding → ANN 측정</strong> 이라는 end-to-end 파이프라인을 일관된
+프레임으로 제공한다.</p>
+<h2>3. 범위 (Scope) — Phase 0+1</h2>
+<p>이 phase 에서 다루는 것:</p>
+<ul>
+<li><strong>방법론 문서</strong> (<code>reports/00_*.md ~ 05_*.md</code>)</li>
+<li>메트릭 정의, 데이터셋 선정 근거, baseline 방법론, VDPU 가치 명제의
+    수식화, 재현성 기준.</li>
+<li><strong>GPU baseline 코드</strong></li>
+<li>Two-tower 모델 학습 (in-batch negatives + sampled softmax with logQ).</li>
+<li>Item embedding 추출.</li>
+<li>FAISS-GPU (IVF-PQ), cuVS (CAGRA), FAISS-CPU (HNSW) 인덱스 빌드.</li>
+<li>Query 스트림 생성 및 retrieval 평가.</li>
+<li>결과 자동 집계 (<code>scripts/99_make_report.sh</code> →
+    <code>reports/baseline_results.md</code>).</li>
+<li><strong>데이터셋</strong></li>
+<li>MovieLens-25M (sanity).</li>
+<li>Amazon Reviews 2023 (Beauty, Books, Electronics).</li>
+</ul>
+<p>이 phase 에서 다루지 않는 것 (Phase 2 이후):</p>
+<ul>
+<li><strong>VDPU 실 측정</strong>. 실리콘/시뮬레이터 도착 후. 코드 통합 경로는 이미
+  설계되어 있다 (<code>Retriever</code> 서브클래스 추가).</li>
+<li><strong>산업급 데이터셋</strong> (Taobao UB, KuaiRec). 방법론이 정착한 후 sweep
+  축으로 추가.</li>
+<li><strong>Ranker 단계</strong> (cross-encoder, MoE ranker 등). retrieval 단계에서
+  ANN 의 영향이 명확히 측정되어야 ranker 와의 분리가 가능.</li>
+<li><strong>Multi-tenant / multi-stream serving</strong>. MLPerf inference 의
+  multi-stream 시나리오는 Phase 2 stretch.</li>
+</ul>
+<h2>4. 핵심 측정 결과 (Phase 0+1 의 최종 산출물)</h2>
+<p>Phase 1 이 완료되면 다음 결과가 자동 생성된다:</p>
+<h3>4.1 Recall-QPS Pareto 곡선</h3>
+<p>각 retriever 별, dataset 별, hardware 별로:</p>
+<ac:structured-macro ac:name="code"><ac:plain-text-body><![CDATA[       Recall@10
+         ▲
+    1.0  │           ●─●─●  cuVS CAGRA (H100)
+         │         ●         ●
+         │       ●             ●
+    0.9  │     ●─●─●─●─●─●─●─●─●  FAISS-GPU IVF-PQ (H100)
+         │   ●
+         │  ●
+    0.8  │ ●─●─●─●─●─●─●─●─●─●─●  FAISS-CPU HNSW (EPYC 7763)
+         │
+    0.0  └────────────────────────▶ QPS (log)
+]]></ac:plain-text-body></ac:structured-macro>
+<p>곡선 위의 모든 점은 (Recall, QPS, hardware, retriever, k) 5-튜플로 라벨링.</p>
+<h3>4.2 비용 효율 표</h3>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>Hardware</th>
+<th>Recall@10</th>
+<th>QPS</th>
+<th>$/QPS</th>
+<th>$/1M queries</th>
+<th>W/QPS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FAISS-GPU IVF-PQ</td>
+<td>H100 SXM5 80G</td>
+<td>0.952</td>
+<td>24 k</td>
+<td>$0.000094</td>
+<td>$0.094</td>
+<td>29</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>H100 SXM5 80G</td>
+<td>0.951</td>
+<td>41 k</td>
+<td>$0.000055</td>
+<td>$0.055</td>
+<td>17</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>2× EPYC 7763</td>
+<td>0.949</td>
+<td>6 k</td>
+<td>$0.000063</td>
+<td>$0.063</td>
+<td>90</td>
+</tr>
+<tr>
+<td>ScaNN CPU</td>
+<td>2× EPYC 7763</td>
+<td>0.953</td>
+<td>5 k</td>
+<td>$0.000075</td>
+<td>$0.075</td>
+<td>96</td>
+</tr>
+<tr>
+<td><em>VDPU</em></td>
+<td><em>TBD</em></td>
+<td><em>—</em></td>
+<td><em>—</em></td>
+<td><em>—</em></td>
+<td><em>—</em></td>
+<td><em>—</em></td>
+</tr>
+</tbody>
+</table>
+<p>(위 숫자는 schema 예시이며 실측이 아니다.)</p>
+<p>VDPU 행은 Phase 2 에서 채워진다.</p>
+<h3>4.3 영업용 헤드라인 (Phase 2 산출, 본 phase 는 placeholder)</h3>
+<p><strong>Iso-recall cost ratio @ Recall@10 = 0.95</strong>:</p>
+<p><code>(<code>/QPS, 가장 저렴한 GPU baseline) ÷ (</code>/QPS, VDPU)</code> = <strong>목표 6~7×</strong></p>
+<p>이 수치의 정확한 수식과 측정 절차는 <code>01_metric_design.md</code> §4 (Cost) 와
+<code>04_vdpu_value_proposition.md</code> 에서 정의된다.</p>
+<h2>5. Phase 로드맵</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>기간</th>
+<th>산출물</th>
+<th>Definition of done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>1~2일</td>
+<td><code>reports/00_*.md ~ 05_*.md</code></td>
+<td>reader 가 문서만으로 "6~7× 가 무엇을 의미하는가" 답 가능</td>
+</tr>
+<tr>
+<td>1</td>
+<td>1~2주</td>
+<td>Two-tower 학습 + <strong>ANN 라이브러리 baseline</strong> (FAISS, cuVS, ScaNN) 코드 + 자동 리포트</td>
+<td>MovieLens-25M + Amazon-Beauty 에서 <code>scripts/00_… → 99_…</code> end-to-end, <code>reports/baseline_results.md</code> 자동 생성</td>
+</tr>
+<tr>
+<td>1.5</td>
+<td>TBD</td>
+<td><strong>오픈소스 vector DB 서버 baseline</strong> (Milvus, Qdrant, Weaviate) 통합</td>
+<td>같은 단일 명령으로 vector DB 서버까지 측정 결과에 포함</td>
+</tr>
+<tr>
+<td>2</td>
+<td>TBD</td>
+<td>VDPU 통합, 산업급 데이터셋, 추가 카테고리</td>
+<td>VDPU 행이 비용 효율 표에 채워지고 iso-recall cost ratio 도출</td>
+</tr>
+<tr>
+<td>2.5</td>
+<td>TBD</td>
+<td>공개 발표 (블로그/논문/오픈소스)</td>
+<td>repo <code>git init</code> → GitHub publish, citation/leaderboard 운영</td>
+</tr>
+</tbody>
+</table>
+<h3>5.1 비교 대상 두 카테고리</h3>
+<p><code>reco_bench</code> 는 다음 두 종류의 retriever 를 모두 <code>Retriever</code> 추상 클래스
+하나로 추상화한다:</p>
+<table>
+<thead>
+<tr>
+<th>카테고리</th>
+<th>형태</th>
+<th>Phase</th>
+<th>예시</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A. ANN 라이브러리</strong></td>
+<td>in-process (Python binding)</td>
+<td>1</td>
+<td>FAISS-CPU HNSW, cuVS IVF-PQ, cuVS CAGRA, ScaNN</td>
+</tr>
+<tr>
+<td><strong>B. Vector DB 서버</strong></td>
+<td>client/server (gRPC/HTTP)</td>
+<td>1.5</td>
+<td>Milvus, Qdrant, Weaviate, pgvector</td>
+</tr>
+<tr>
+<td><strong>C. VDPU</strong></td>
+<td>전용 가속기 + driver</td>
+<td>2</td>
+<td>Dnotitia VDPU FPGA / ASIC</td>
+</tr>
+</tbody>
+</table>
+<p>세 카테고리 모두 동일한 (Recall, QPS, $/1M queries) 튜플로 보고되므로
+<strong>reader 가 자기 환경에 맞는 비교</strong> 를 즉시 할 수 있다.</p>
+<h2>6. 용어집</h2>
+<table>
+<thead>
+<tr>
+<th>용어</th>
+<th>정의</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Two-tower</strong></td>
+<td>User feature 와 item feature 를 각각 독립적인 encoder (tower) 로 매핑한 뒤 dot product (또는 cosine) 로 친화도를 계산하는 추천 아키텍처. YouTube DNN (2019), Google "Sampling-bias-corrected" (2019) 이 대표적.</td>
+</tr>
+<tr>
+<td><strong>ANN</strong></td>
+<td>Approximate Nearest Neighbor. 정확한 top-K 대신 빠른 근사 top-K. 대표 알고리즘: HNSW, IVF, IVF-PQ, CAGRA, ScaNN.</td>
+</tr>
+<tr>
+<td><strong>Recall@K</strong></td>
+<td>사용자별로 ground-truth 정답 item 이 retrieval 결과 top-K 안에 들어 있을 확률의 평균. ANN 정확도와 모델 정확도 둘 다에 영향받음.</td>
+</tr>
+<tr>
+<td><strong>Iso-recall</strong></td>
+<td>두 시스템을 비교할 때 둘의 recall 을 같은 값으로 맞추고 (parameter 튜닝으로) 그 조건에서 QPS/비용/지연을 비교하는 방법. "VDPU 가 7× 빠르다" 는 주장이 진짜인지 가짜인지 가르는 기준.</td>
+</tr>
+<tr>
+<td><strong>QPS</strong></td>
+<td>Queries Per Second. 1초당 처리한 query (사용자 1명에 대한 top-K retrieval) 의 수. 동시성 (concurrency) 조건이 다르면 의미가 달라진다.</td>
+</tr>
+<tr>
+<td><strong>VDPU</strong></td>
+<td>Vector Data Processing Unit. 디노티시아가 개발 중인 벡터 유사도/탐색 가속기. 공개 주장 CPU-10×, GPU-6~7× 가성비. 2025년 FPGA, 2026년 ASIC 양산 예정.</td>
+</tr>
+<tr>
+<td><strong>logQ correction</strong></td>
+<td>In-batch negative sampling 시 popular item 이 negative 로 더 자주 등장하는 bias 를 보정하기 위해 logit 에서 log(item 출현 빈도) 를 빼는 기법. Google "Sampling-bias-corrected" 논문의 핵심.</td>
+</tr>
+</tbody>
+</table>
+<h2>7. 어디서 시작하는가</h2>
+<table>
+<thead>
+<tr>
+<th>관심사</th>
+<th>읽을 문서</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"이 벤치마크가 측정하는 메트릭이 정확히 뭔가?"</td>
+<td><a href="01_metric_design.html"><code>01_metric_design.md</code></a></td>
+</tr>
+<tr>
+<td>"어떤 데이터셋을 왜 골랐나?"</td>
+<td><a href="02_dataset_selection.html"><code>02_dataset_selection.md</code></a></td>
+</tr>
+<tr>
+<td>"Two-tower 학습부터 ANN 평가까지의 절차는?"</td>
+<td><a href="03_baseline_methodology.html"><code>03_baseline_methodology.md</code></a></td>
+</tr>
+<tr>
+<td>"VDPU 의 6~7× 주장은 어떻게 수치화되나?"</td>
+<td><a href="04_vdpu_value_proposition.html"><code>04_vdpu_value_proposition.md</code></a></td>
+</tr>
+<tr>
+<td>"내 머신에서 재현하려면?"</td>
+<td><a href="05_reproducibility.html"><code>05_reproducibility.md</code></a></td>
+</tr>
+<tr>
+<td>"최종 baseline 숫자는?"</td>
+<td><code>baseline_results.md</code> (Phase 1 완료 후 자동 생성)</td>
+</tr>
+<tr>
+<td>"왜 지금 모습인지의 역사"</td>
+<td><a href="history/0000_index.html"><code>history/0000_index.md</code></a></td>
+</tr>
+<tr>
+<td>"원본 plan 과 RFC"</td>
+<td><a href="planning/"><code>planning/</code></a></td>
+</tr>
+</tbody>
+</table>
