@@ -139,7 +139,14 @@
 <td>2</td>
 <td><a href="2026-06-04_phase2-scaling.html">phase2-scaling</a></td>
 <td>completed</td>
-<td>Phase 2 (VDPU-비의존): corpus {100k/1M/10M} + dim {64~512} scaling. GPU 는 corpus 에 robust(격차 4→5.5×), 고차원일수록 CPU 불리. synthetic, 07_scaling.md.</td>
+<td>Phase 2 (VDPU-비의존): corpus {100k/1M/10M} + dim {128/192/256} scaling. GPU 는 corpus 에 robust(격차 4→5.5×), 고차원일수록 CPU 불리. synthetic, 07_scaling.md.</td>
+</tr>
+<tr>
+<td>2026-06-04</td>
+<td>2</td>
+<td><a href="2026-06-04_cpu-thread-policy.html">cpu-thread-policy</a></td>
+<td>completed</td>
+<td>FAISS-CPU thread 수를 cost SKU(128-core)에 고정 (<code>omp_set_num_threads(128)</code>). 측정 머신 224-core 와 cost SKU 128-core 불일치 해소. 03 §3.1.1 신설.</td>
 </tr>
 </tbody>
 </table>

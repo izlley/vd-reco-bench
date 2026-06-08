@@ -1,0 +1,55 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 2
+topic: cpu-thread-policy
+status: completed
+{info}
+
+
+h1. CPU thread 수를 cost SKU 에 고정 (측정-비용 정합)
+
+h2. What changed
+
+* 사용자 지적으로 *FAISS-CPU thread 정책* 을 명문화하고 코드에 적용.
+* 발견된 불일치:
+** 측정 머신: *224 cores* ({{nproc=224}},
+    {{faiss.omp_get_max_threads()=224}}, thread 제한 코드 없음).
+** cost SKU ({{epyc_7763_2s_aws_c7a}}): *128-core* 가정, $1.42/hr.
+** → 224-core 머신에서 측정한 CPU throughput 에 128-core 단가를 매기면
+    $/QPS 왜곡.
+** 추가로, throughput 측정의 batch(concurrency)가 ≤64 였어서 224-core
+    중 실제로는 ~64 thread 만 활용 (CPU 가 불리하게 측정될 여지).
+* 적용:
+** {{reco_bench/retrievers/faiss_cpu.py}}: build 시
+    {{faiss.omp_set_num_threads(cfg["num_threads"])}}, 기본 128.
+    {{device_info()}} 에 {{num_threads}} 기록.
+** {{configs/retrievers/faiss_hnsw_cpu.yaml}}: {{build.num_threads: 128}}.
+** {{reports/03_baseline_methodology.md §3.1.1}} 신설 (CPU thread 정책).
+
+h2. Why
+
+* CPU retriever 의 throughput 은 thread 수에 거의 선형 비례 → 측정 머신
+  코어 수와 cost SKU 코어 수가 다르면 비용 비교가 부정확.
+* *두 가지 정합 방법* 중 사용자가 *"thread 수를 SKU 에 맞춰 고정"*
+  ({{omp_set_num_threads(128)}}) 을 선택. 다른 방법(concurrency 를 224+ 로
+  올려 전 코어 활용한 "진짜 max throughput")보다, **cost 모델과 엄밀히
+  일치** 하는 쪽을 택한 것. 영업 cost ratio 의 신뢰성에 직접 기여.
+* 128 = cost SKU({{epyc_7763_2s}})의 코어 수. SKU 를 바꾸면 그 코어 수로
+  {{num_threads}} 를 맞추면 된다.
+
+h2. Validation
+
+* {{faiss.omp_set_num_threads(128)}} 적용 후 {{device_info()}} 에
+  {{num_threads: 128}} 기록 확인.
+* 정책은 *이후 측정부터 적용*. 2026-06-04 이전의 baseline_results /
+  scaling 결과는 thread 무제한(batch-limited ~64 thread)으로 측정된
+  값임을 §3.1.1 과 본 entry 에 명시 (재측정 시 갱신).
+
+h2. Open questions / next
+
+* *기존 결과 재측정*: 128-thread 고정으로 Phase 1 baseline (ML-25M,
+  Amazon) 의 CPU retriever(FAISS-CPU HNSW, ScaNN) QPS·$/QPS 를 재측정해
+  baseline_results.md 를 갱신하면 cost 비교가 엄밀해진다 (향후).
+* *cost SKU 선택*: 측정 머신과 가까운 SKU(예: 224-core 급)로 cost
+  model 을 바꾸고 thread 도 그에 맞추는 대안도 가능. 현재는 128-core
+  EPYC 로 고정.

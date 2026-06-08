@@ -293,6 +293,22 @@ contextual bandit / dual tower 와의 통합 용이).</p>
 다르다 (전자는 격리 conda env worker, 후자는 main 파이프라인). 직접
 throughput 비교 시 이 점을 감안 (§6 / findings §1 참조).</p>
 </blockquote>
+<h3 id="311-cpu-thread-">3.1.1 CPU thread 정책 (측정-비용 정합)</h3>
+<p>CPU retriever(FAISS-CPU HNSW 등)의 throughput 은 사용 thread 수에 직접
+비례하므로, <strong>측정 머신의 코어 수와 cost SKU 의 코어 수가 다르면 $/QPS
+가 왜곡</strong>된다. 본 벤치마크의 측정 머신은 <strong>224-core</strong> 이지만 cost SKU
+(<code>epyc_7763_2s_aws_c7a</code>)는 <strong>128-core</strong> 기준이다.</p>
+<p>→ 정합을 위해 <strong>FAISS thread 수를 cost SKU 의 코어 수(128)에 고정</strong>한다
+(<code>faiss.omp_set_num_threads(128)</code>, <code>configs/retrievers/faiss_hnsw_cpu.yaml</code>
+의 <code>build.num_threads</code>). 이로써 224-core 머신에서 측정하더라도
+128-core EPYC SKU 단가와 일관된 throughput·비용이 나온다.</p>
+<ul>
+<li>기본값 <code>num_threads: 128</code> (= cost SKU 코어 수).</li>
+<li>thread 수는 각 run 의 <code>device_info()</code> 에 기록되어 결과에 남는다.</li>
+<li><strong>주의</strong>: 2026-06-04 이전 측정값은 thread 무제한(224-core 전부 사용
+  가능, 단 batch≤64 라 실제 활용은 ~64 thread)으로 측정되어 본 정책과
+  다르다. 이후 측정부터 128-thread 고정 적용. (<code>reports/history/2026-06-04_cpu-thread-policy.md</code>)</li>
+</ul>
 <h3 id="32-grid-recall-qps">3.2 파라미터 grid (Recall-QPS 곡선용)</h3>
 <p><strong>FAISS-CPU HNSW:</strong></p>
 <pre><code class="language-yaml">build:

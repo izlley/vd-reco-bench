@@ -160,6 +160,24 @@ h3. 3.1 Retriever 비교 매트릭스 (Phase 1)
 throughput 비교 시 이 점을 감안 (§6 / findings §1 참조).
 {quote}
 
+h3. 3.1.1 CPU thread 정책 (측정-비용 정합)
+
+CPU retriever(FAISS-CPU HNSW 등)의 throughput 은 사용 thread 수에 직접
+비례하므로, **측정 머신의 코어 수와 cost SKU 의 코어 수가 다르면 $/QPS
+가 왜곡*된다. 본 벤치마크의 측정 머신은 *224-core** 이지만 cost SKU
+({{epyc_7763_2s_aws_c7a}})는 *128-core* 기준이다.
+
+→ 정합을 위해 *FAISS thread 수를 cost SKU 의 코어 수(128)에 고정*한다
+({{faiss.omp_set_num_threads(128)}}, {{configs/retrievers/faiss_hnsw_cpu.yaml}}
+의 {{build.num_threads}}). 이로써 224-core 머신에서 측정하더라도
+128-core EPYC SKU 단가와 일관된 throughput·비용이 나온다.
+
+* 기본값 {{num_threads: 128}} (= cost SKU 코어 수).
+* thread 수는 각 run 의 {{device_info()}} 에 기록되어 결과에 남는다.
+* *주의*: 2026-06-04 이전 측정값은 thread 무제한(224-core 전부 사용
+  가능, 단 batch≤64 라 실제 활용은 ~64 thread)으로 측정되어 본 정책과
+  다르다. 이후 측정부터 128-thread 고정 적용. ({{reports/history/2026-06-04_cpu-thread-policy.md}})
+
 h3. 3.2 파라미터 grid (Recall-QPS 곡선용)
 
 *FAISS-CPU HNSW:*

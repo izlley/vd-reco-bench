@@ -144,7 +144,7 @@ h3. 4.1 Corpus size 의 영향
 
 h3. 4.2 Embedding dim 의 영향
 
-dim ∈ {64, 128, 256, 512}.
+dim ∈ {128, 192, 256} (two-tower 실용 구간).
 VDPU 의 connectivity 와 SIMD 폭이 어느 dim 에서 최적인지 측정.
 
 h3. 4.3 Recall target 의 영향

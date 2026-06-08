@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026-06-04_cpu-thread-policy · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="../00_overview.html">↑ 개요</a> · <a href="../history/0000_index.html">history</a></div>
+<div class="metabox"><b>date</b>: 2026-06-04 &nbsp;·&nbsp; <b>phase</b>: 2 &nbsp;·&nbsp; <b>topic</b>: cpu-thread-policy &nbsp;·&nbsp; <b>status</b>: completed</div>
+<h1 id="cpu-thread-cost-sku-">CPU thread 수를 cost SKU 에 고정 (측정-비용 정합)</h1>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li>사용자 지적으로 <strong>FAISS-CPU thread 정책</strong> 을 명문화하고 코드에 적용.</li>
+<li>발견된 불일치:</li>
+<li>측정 머신: <strong>224 cores</strong> (<code>nproc=224</code>,
+    <code>faiss.omp_get_max_threads()=224</code>, thread 제한 코드 없음).</li>
+<li>cost SKU (<code>epyc_7763_2s_aws_c7a</code>): <strong>128-core</strong> 가정, $1.42/hr.</li>
+<li>→ 224-core 머신에서 측정한 CPU throughput 에 128-core 단가를 매기면
+    $/QPS 왜곡.</li>
+<li>추가로, throughput 측정의 batch(concurrency)가 ≤64 였어서 224-core
+    중 실제로는 ~64 thread 만 활용 (CPU 가 불리하게 측정될 여지).</li>
+<li>적용:</li>
+<li><code>reco_bench/retrievers/faiss_cpu.py</code>: build 시
+    <code>faiss.omp_set_num_threads(cfg["num_threads"])</code>, 기본 128.
+    <code>device_info()</code> 에 <code>num_threads</code> 기록.</li>
+<li><code>configs/retrievers/faiss_hnsw_cpu.yaml</code>: <code>build.num_threads: 128</code>.</li>
+<li><code>reports/03_baseline_methodology.md §3.1.1</code> 신설 (CPU thread 정책).</li>
+</ul>
+<h2 id="why">Why</h2>
+<ul>
+<li>CPU retriever 의 throughput 은 thread 수에 거의 선형 비례 → 측정 머신
+  코어 수와 cost SKU 코어 수가 다르면 비용 비교가 부정확.</li>
+<li><strong>두 가지 정합 방법</strong> 중 사용자가 <strong>"thread 수를 SKU 에 맞춰 고정"</strong>
+  (<code>omp_set_num_threads(128)</code>) 을 선택. 다른 방법(concurrency 를 224+ 로
+  올려 전 코어 활용한 "진짜 max throughput")보다, <strong>cost 모델과 엄밀히
+  일치</strong> 하는 쪽을 택한 것. 영업 cost ratio 의 신뢰성에 직접 기여.</li>
+<li>128 = cost SKU(<code>epyc_7763_2s</code>)의 코어 수. SKU 를 바꾸면 그 코어 수로
+  <code>num_threads</code> 를 맞추면 된다.</li>
+</ul>
+<h2 id="validation">Validation</h2>
+<ul>
+<li><code>faiss.omp_set_num_threads(128)</code> 적용 후 <code>device_info()</code> 에
+  <code>num_threads: 128</code> 기록 확인.</li>
+<li>정책은 <strong>이후 측정부터 적용</strong>. 2026-06-04 이전의 baseline_results /
+  scaling 결과는 thread 무제한(batch-limited ~64 thread)으로 측정된
+  값임을 §3.1.1 과 본 entry 에 명시 (재측정 시 갱신).</li>
+</ul>
+<h2 id="open-questions-next">Open questions / next</h2>
+<ul>
+<li><strong>기존 결과 재측정</strong>: 128-thread 고정으로 Phase 1 baseline (ML-25M,
+  Amazon) 의 CPU retriever(FAISS-CPU HNSW, ScaNN) QPS·$/QPS 를 재측정해
+  baseline_results.md 를 갱신하면 cost 비교가 엄밀해진다 (향후).</li>
+<li><strong>cost SKU 선택</strong>: 측정 머신과 가까운 SKU(예: 224-core 급)로 cost
+  model 을 바꾸고 thread 도 그에 맞추는 대안도 가능. 현재는 128-core
+  EPYC 로 고정.</li>
+</ul>
+</body>
+</html>

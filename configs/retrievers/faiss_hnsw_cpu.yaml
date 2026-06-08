@@ -10,6 +10,10 @@ build:
   M: 32                                # default; param sweep 은 experiments/*.yaml 에서 override
   efConstruction: 200
   metric: inner_product
+  num_threads: 128                     # cost SKU(epyc_7763_2s, 128-core)에 맞춰 고정.
+                                       # 측정 머신이 224-core 여도 128 thread 로 제한해
+                                       # cost($/hr)와 throughput 측정을 정합시킨다.
+                                       # 근거: reports/03_baseline_methodology.md §3.3.
 
 search:
   efSearch_grid: [16, 32, 64, 128, 256, 512]

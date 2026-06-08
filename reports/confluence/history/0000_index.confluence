@@ -38,4 +38,5 @@ h2. Entries
 |2026-06-04|1|[confluence-storage-export|2026-06-04_confluence-storage-export.md]|completed|reports 문서 23개를 Confluence Storage Format (XHTML) 으로 변환 ({{scripts/md_to_confluence_storage.py}} → {{reports/confluence_storage/}}). REST API 업로드용. 전부 well-formed XML.|
 |2026-06-04|1|[vectordb-server-eval|2026-06-04_vectordb-server-eval.md]|completed|Qdrant server-mode (gRPC, standalone 바이너리) 평가. ML-25M 743 / Amazon 550 QPS, recall vs exact 1.0. Milvus server 는 Docker 없이 비현실적.|
 |2026-06-04|1|[faiss-gpu-eval|2026-06-04_faiss-gpu-eval.md]|completed|FAISS-GPU IVF-PQ 평가 (conda-forge faiss-gpu 1.10, H100 sm_90, 격리 env worker). GPU 진영 최고 QPS 356k/57k, 단 IVF-PQ recall vs exact 0.42~0.51. 6 retriever × 2 dataset = 57 rows.|
-|2026-06-04|2|[phase2-scaling|2026-06-04_phase2-scaling.md]|completed|Phase 2 (VDPU-비의존): corpus {100k/1M/10M} + dim {64~512} scaling. GPU 는 corpus 에 robust(격차 4→5.5×), 고차원일수록 CPU 불리. synthetic, 07_scaling.md.|
+|2026-06-04|2|[phase2-scaling|2026-06-04_phase2-scaling.md]|completed|Phase 2 (VDPU-비의존): corpus {100k/1M/10M} + dim {128/192/256} scaling. GPU 는 corpus 에 robust(격차 4→5.5×), 고차원일수록 CPU 불리. synthetic, 07_scaling.md.|
+|2026-06-04|2|[cpu-thread-policy|2026-06-04_cpu-thread-policy.md]|completed|FAISS-CPU thread 수를 cost SKU(128-core)에 고정 ({{omp_set_num_threads(128)}}). 측정 머신 224-core 와 cost SKU 128-core 불일치 해소. 03 §3.1.1 신설.|

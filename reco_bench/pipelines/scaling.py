@@ -91,7 +91,7 @@ def run(mode: str, out_dir: Path) -> dict:
     if mode == "corpus":
         settings = [(n, 128) for n in (100_000, 1_000_000, 10_000_000)]
     elif mode == "dim":
-        settings = [(1_000_000, d) for d in (64, 128, 256, 512)]
+        settings = [(1_000_000, d) for d in (128, 192, 256)]
     else:
         raise ValueError(mode)
 

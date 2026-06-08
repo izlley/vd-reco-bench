@@ -12,7 +12,7 @@
 |---|---|---|
 | **corpus 가 커질수록 GPU/CPU throughput 격차 확대** | QPS 격차 100k 에서 4× → 10M 에서 5.5× (CAGRA vs FAISS-CPU HNSW) | VDPU 의 타겟인 대규모 corpus 일수록 GPU-class 가속의 가치↑ |
 | **GPU 는 corpus 에 robust, CPU 는 하락** | CAGRA QPS 14.7k→16.4k (corpus 100k→10M), FAISS-CPU 3.6k→3.0k | 데이터 증가에도 GPU 처리량 유지 = 확장성 |
-| **고차원일수록 CPU 가 더 불리** | dim 512 에서 FAISS-CPU QPS 3.7k→2.1k 급락, CAGRA 16k→14k 로 완만 | 임베딩 차원이 큰 모델(LLM 기반 임베딩 등)일수록 GPU/VDPU 유리 |
+| **고차원일수록 CPU 가 더 불리** | dim 128→256 에서 FAISS-CPU 는 QPS·recall 동시 하락(3.6k→3.1k, recall 0.79→0.46), CAGRA 는 QPS 유지(15k→14k) | 임베딩 차원이 큰 모델(LLM 기반 임베딩 등)일수록 GPU/VDPU 유리 |
 
 ## 2. 측정 설계
 
@@ -21,7 +21,7 @@
   query 는 임의 item 을 약간 perturb (현실적 top-K).
 - **통제 변수**:
   - corpus sweep: items ∈ {100k, 1M, 10M}, dim=128 고정
-  - dim sweep: dim ∈ {64, 128, 256, 512}, corpus=1M 고정
+  - dim sweep: dim ∈ {128, 192, 256}, corpus=1M 고정
 - **retriever**: FAISS-CPU HNSW, cuVS CAGRA (GPU), cuVS IVF-PQ (GPU).
   각 retriever 대표 param 2점 (recall 높은 쪽 선택).
 - **하드웨어**: H100 1장 (`CUDA_VISIBLE_DEVICES=0`) + CPU.
@@ -56,20 +56,25 @@
 
 | Retriever | Device | Dim | Recall@10 vs exact | QPS (max) |
 |---|---|---|---|---|
-| cuVS CAGRA | GPU | 64 | 0.9100 | 16,102 |
-| cuVS CAGRA | GPU | 128 | 0.7298 | 19,141 |
-| cuVS CAGRA | GPU | 256 | 0.4122 | 14,116 |
-| cuVS CAGRA | GPU | 512 | 0.2024 | 13,961 |
-| FAISS-CPU HNSW | CPU | 64 | 0.9464 | 3,753 |
-| FAISS-CPU HNSW | CPU | 128 | 0.7930 | 3,585 |
-| FAISS-CPU HNSW | CPU | 256 | 0.4682 | 3,102 |
-| FAISS-CPU HNSW | CPU | 512 | 0.2162 | **2,116** |
+| cuVS CAGRA | GPU | 128 | 0.7275 | 14,953 |
+| cuVS CAGRA | GPU | 192 | 0.5475 | 17,788 |
+| cuVS CAGRA | GPU | 256 | 0.4134 | 14,160 |
+| cuVS IVF-PQ | GPU | 128 | 0.3196 | 20,821 |
+| cuVS IVF-PQ | GPU | 192 | 0.2089 | 24,714 |
+| cuVS IVF-PQ | GPU | 256 | 0.1478 | 22,642 |
+| FAISS-CPU HNSW | CPU | 128 | 0.7912 | 3,607 |
+| FAISS-CPU HNSW | CPU | 192 | 0.6197 | 3,418 |
+| FAISS-CPU HNSW | CPU | 256 | 0.4639 | 3,061 |
 
 **해석**:
-- dim 이 64→512 로 커질 때 CPU HNSW 의 QPS 가 3,753→2,116 (**-44%**)
-  으로 크게 하락. GPU CAGRA 는 16,102→13,961 (**-13%**) 로 완만.
-- **고차원 임베딩일수록 CPU 가 더 불리** → LLM/멀티모달 임베딩처럼
-  dim 이 큰 추천 모델에서 GPU/VDPU 의 이점이 커진다.
+- dim 이 128→256 으로 커질 때 CPU HNSW 의 QPS 가 3,607→3,061 (**-15%**)
+  하락하고 recall 도 0.79→0.46 으로 크게 떨어진다. GPU CAGRA 는
+  QPS 가 14,953→14,160 (거의 유지) 이면서 recall 하락도 상대적으로 완만.
+- GPU/CPU **throughput 격차는 dim 전 구간에서 ~4–5×** 유지되며, 고차원
+  으로 갈수록 CPU 의 recall·QPS 가 동시에 나빠진다 → **dim 이 큰 임베딩
+  (LLM/멀티모달 추천) 일수록 GPU/VDPU 의 이점**.
+- (참고: dim 범위를 128/192/256 으로 설정한 것은 two-tower 추천에서
+  실용적으로 쓰이는 임베딩 차원 구간에 집중하기 위함.)
 
 ## 5. 한계와 주의 (정직한 기록)
 
@@ -101,7 +106,7 @@
 
 ```bash
 python -m reco_bench.pipelines.scaling --mode corpus   # 100k/1M/10M × dim128
-python -m reco_bench.pipelines.scaling --mode dim      # dim 64~512 × corpus1M
+python -m reco_bench.pipelines.scaling --mode dim      # dim 128/192/256 × corpus1M
 python -m reco_bench.pipelines.scaling_report          # 그래프 + 표
 ```
 

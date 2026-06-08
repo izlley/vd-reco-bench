@@ -188,15 +188,15 @@ embedding 한 번이지만, ANN 은 수억 item 벡터를 query 마다 훑어야
 </tr>
 <tr>
 <td>1.5</td>
-<td>TBD</td>
-<td><strong>오픈소스 vector DB 서버 baseline</strong> (Milvus, Qdrant, Weaviate) 통합</td>
-<td>같은 단일 명령으로 vector DB 서버까지 측정 결과에 포함</td>
+<td>✅ 부분</td>
+<td><strong>오픈소스 vector DB 서버 baseline</strong></td>
+<td>Qdrant server(gRPC) 측정 완료. Milvus server 는 Docker 환경 필요 (생략)</td>
 </tr>
 <tr>
 <td>2</td>
-<td>TBD</td>
-<td>VDPU 통합, 산업급 데이터셋, 추가 카테고리</td>
-<td>VDPU 행이 비용 효율 표에 채워지고 iso-recall cost ratio 도출</td>
+<td>진행 중 (VDPU-비의존)</td>
+<td><strong>corpus/dim scaling + sensitivity</strong> (<code>07_scaling.md</code>) + CPU thread 정책</td>
+<td>synthetic 으로 corpus {100k/1M/10M}·dim {128/192/256} sweep 완료. GPU 는 corpus 에 robust(격차 4→5.5×). <strong>VDPU 실측은 하드웨어 도착 후</strong></td>
 </tr>
 <tr>
 <td>2.5</td>

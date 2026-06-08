@@ -33,6 +33,15 @@ class FaissHnswCpu(Retriever):
     def build(self, item_emb: np.ndarray, item_ids: np.ndarray, cfg: dict[str, Any]) -> BuildStats:
         import psutil
 
+        # CPU thread 수를 cost SKU 의 core 수에 맞춰 고정 (측정-비용 정합).
+        # cfg["num_threads"] 미지정 시 cost_model 의 CPU SKU core 수(기본 128)
+        # 로 고정한다. 이렇게 해야 224-core 측정 머신에서도 128-core EPYC
+        # SKU 단가($/hr)와 일관된 throughput 을 측정한다.
+        # 근거: reports/03_baseline_methodology.md §3.3 (CPU thread 정책).
+        num_threads = int(cfg.get("num_threads", 128))
+        faiss.omp_set_num_threads(num_threads)
+        self._num_threads = num_threads
+
         proc = psutil.Process()
         m_before = proc.memory_info().rss
 
@@ -90,4 +99,9 @@ class FaissHnswCpu(Retriever):
         self._item_ids = np.load(path / "item_ids.npy")
 
     def device_info(self) -> dict[str, Any]:
-        return {"device": "cpu", "name": "faiss_hnsw_cpu", "faiss": "1.14.x"}
+        return {
+            "device": "cpu",
+            "name": "faiss_hnsw_cpu",
+            "faiss": "1.14.x",
+            "num_threads": getattr(self, "_num_threads", faiss.omp_get_max_threads()),
+        }

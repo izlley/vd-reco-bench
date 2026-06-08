@@ -140,8 +140,8 @@ h2. 5. Phase 로드맵
 ||Phase||기간||산출물||Definition of done||
 |0|1~2일|{{reports/00_*.md ~ 05_*.md}}|reader 가 문서만으로 "6~7× 가 무엇을 의미하는가" 답 가능|
 |1|1~2주|Two-tower 학습 + *ANN 라이브러리 baseline* (FAISS, cuVS, ScaNN) 코드 + 자동 리포트|MovieLens-25M + Amazon-Beauty 에서 {{scripts/00_… → 99_…}} end-to-end, {{reports/baseline_results.md}} 자동 생성|
-|1.5|TBD|*오픈소스 vector DB 서버 baseline* (Milvus, Qdrant, Weaviate) 통합|같은 단일 명령으로 vector DB 서버까지 측정 결과에 포함|
-|2|TBD|VDPU 통합, 산업급 데이터셋, 추가 카테고리|VDPU 행이 비용 효율 표에 채워지고 iso-recall cost ratio 도출|
+|1.5|✅ 부분|*오픈소스 vector DB 서버 baseline*|Qdrant server(gRPC) 측정 완료. Milvus server 는 Docker 환경 필요 (생략)|
+|2|진행 중 (VDPU-비의존)|*corpus/dim scaling + sensitivity* ({{07_scaling.md}}) + CPU thread 정책|synthetic 으로 corpus {100k/1M/10M}·dim {128/192/256} sweep 완료. GPU 는 corpus 에 robust(격차 4→5.5×). *VDPU 실측은 하드웨어 도착 후*|
 |2.5|TBD|공개 발표 (블로그/논문/오픈소스)|repo {{git init}} → GitHub publish, citation/leaderboard 운영|
 
 h3. 5.1 비교 대상 두 카테고리
