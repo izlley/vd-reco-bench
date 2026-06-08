@@ -283,19 +283,53 @@ class Retriever:
 <p><img alt="Latency CDF" src="figures/latency_cdf.png"></p>
 <p><strong>읽는 법</strong>: 곡선이 <strong>왼쪽</strong>에 있을수록 빠르고 일관적. 추천 서비스는
 평균이 아니라 <strong>P99</strong>(곡선의 99% 지점)로 품질을 약속합니다.</p>
-<h3 id="55-gpu">5.5 ⭐ 가장 중요한 결과 — "데이터가 커질수록 GPU 가 이긴다"</h3>
+<h3 id="55-gpu-throughput">5.5 ⭐ 핵심 결과 — "데이터가 커져도 GPU 는 throughput 을 유지한다"</h3>
 <p><img alt="Corpus scaling" src="figures/scaling_corpus.png"></p>
-<pre><code>상품 수:        10만      →     1천만  (100배 증가)
-─────────────────────────────────────────────────
-GPU (cuVS CAGRA):  14,744  →   16,381 QPS  (유지/상승 👍)
-CPU (FAISS HNSW):   3,622  →    2,952 QPS  (하락 👎)
-─────────────────────────────────────────────────
-속도 격차:           4.1배  →     5.5배   (점점 벌어짐)
-</code></pre>
+<table>
+<thead>
+<tr>
+<th>상품 수</th>
+<th>cuVS CAGRA (GPU)</th>
+<th>FAISS-CPU HNSW (CPU)</th>
+<th>속도 격차</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10만</td>
+<td>14,744 QPS (recall 0.78)</td>
+<td>3,622 QPS (recall 0.95)</td>
+<td>4.1×</td>
+</tr>
+<tr>
+<td>100만</td>
+<td>15,084 QPS (recall 0.73)</td>
+<td>3,647 QPS (recall 0.79)</td>
+<td>4.1×</td>
+</tr>
+<tr>
+<td>1천만</td>
+<td>16,381 QPS (<strong>recall 0.21</strong>)</td>
+<td>2,952 QPS (<strong>recall 0.53</strong>)</td>
+<td>5.5×</td>
+</tr>
+</tbody>
+</table>
+<p><strong>읽는 법 (두 축을 같이 봐야 함)</strong>:
+- ✅ <strong>속도(QPS)</strong>: GPU 는 상품이 100배(10만→1천만) 늘어도 throughput
+  을 유지/상승, CPU 는 하락 → <strong>GPU 가 대규모에 robust</strong>.
+- ⚠️ <strong>정확도(recall)</strong>: 이 측정은 <strong>검색 파라미터를 고정</strong>했기 때문에
+  corpus 가 커지면 GPU·CPU <strong>둘 다 recall 이 떨어집니다</strong> (0.78→0.21).
+  즉 위 QPS 는 <strong>"같은 정확도(iso-recall)에서의 비교가 아닙니다."</strong></p>
 <blockquote>
-<p>🎯 <strong>이것이 영업의 핵심</strong>: 작은 데이터에선 CPU 도 충분하지만,
-<strong>쿠팡 규모(수천만~수억 상품)에선 GPU급 가속이 필수</strong> 가 된다.
-그리고 <strong>VDPU 는 그 GPU 자리를 더 싸게/빠르게 노린다.</strong></p>
+<p>🎯 <strong>정직한 결론</strong>: "GPU 가 대규모에서 throughput 을 유지한다"는
+robustness 신호는 분명합니다. 다만 이 자료의 핵심 원칙인
+<strong>iso-recall(같은 정확도) 비용비율</strong>의 직접 증거가 되려면, corpus 별로
+recall 0.9 를 맞추는 param 으로 재측정이 필요합니다 (후속 과제,
+<a href="07_scaling.html"><code>07_scaling.md §5</code></a>). <strong>이 슬라이드에서는 "GPU 의
+throughput robustness"까지만 주장</strong>하며, 과장하지 않습니다.</p>
+<p>작은 데이터에선 CPU 도 충분하지만 <strong>쿠팡 규모에선 GPU급 가속의 이점이
+커지는 방향</strong>이라는 추세는 유효하고, <strong>VDPU 는 그 GPU 자리를 노립니다.</strong></p>
 </blockquote>
 <h3 id="56-gpu">5.6 고차원일수록 GPU 유리</h3>
 <p><img alt="Dim scaling" src="figures/scaling_dim.png"></p>
