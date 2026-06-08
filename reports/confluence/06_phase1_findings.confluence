@@ -19,10 +19,10 @@ Phase 1 의 frame 으로 *6개 retriever × 2개 데이터셋* 의 측정이 단
 핵심 발견:
 
 ||발견||영향||
-|*작은 corpus 에서 FAISS-CPU HNSW 가 cuVS CAGRA 대비 74× 빠름*|ML-25M 24k items 같은 작은 corpus 에서는 CPU 의 latency advantage 가 GPU dispatch overhead 를 압도. GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후 드러남.|
+|*작은 corpus 에서 FAISS-CPU HNSW 가 cuVS CAGRA 대비 약 67× 빠름*|ML-25M 24k items 같은 작은 corpus 에서는 CPU 의 latency advantage 가 GPU dispatch overhead 를 압도. GPU 가속의 진정한 가치는 corpus 가 100만 items 이상으로 커진 후 드러남.|
 |*FAISS-GPU IVF-PQ 가 GPU 진영 최고 throughput*|ML-25M 356k QPS / Amazon 57k QPS (nprobe sweep). 같은 IVF-PQ 알고리즘인 cuVS IVF-PQ (1,055 / 11,599 QPS) 보다 *수십~수백 배 높음* — FAISS 의 batch GPU search 가 cuVS python 바인딩보다 훨씬 효율적. *단 recall vs exact 0.42~0.51 (PQ 압축 손실) 로 iso-recall 0.95 영역엔 도달 못함.*|
 |*IVF-PQ 계열(FAISS-GPU/cuVS)은 작은 corpus + high-recall 부적합*|PQ 압축 손실로 recall vs exact 가 nprobe 를 올려도 0.5 부근에서 saturate. IVF-PQ 는 *메모리 절감 + 초고속 throughput* 이 강점이고 high-recall 이 목표면 CAGRA/HNSW 가 적합. → Recall-QPS Pareto 의 서로 다른 영역.|
-|*Vector DB 는 in-process ANN 라이브러리보다 현저히 느림*|Qdrant *server (gRPC)* 743 QPS(ML-25M) / 550(Amazon) vs FAISS HNSW 332k/102k — *186~447× 느림*. per-query RPC round-trip 비용. 단 batch API 미사용 lower bound. Milvus server 는 Docker 없이 비현실적.|
+|*Vector DB 는 in-process ANN 라이브러리보다 현저히 느림*|Qdrant *server (gRPC)* 743 QPS(ML-25M) / 550(Amazon) vs FAISS HNSW(CPU 128-thread) 301k/95k — *173~405× 느림*. per-query RPC round-trip 비용. 단 batch API 미사용 lower bound. Milvus server 는 Docker 없이 비현실적.|
 |*Recall@10 vs ground truth 가 낮다고 ANN 비교 의미가 없는 게 아님*|본 phase 의 Two-tower 모델 quality 한계 (Recall@10 ≈ 0.02) 와 무관하게, *Recall@10 vs exact* 컬럼이 ANN 알고리즘의 정확도를 모델과 독립적으로 측정.|
 
 h2. 2. 실측 결과 표 (자동 생성)
@@ -30,8 +30,9 @@ h2. 2. 실측 결과 표 (자동 생성)
 *ML-25M* (24,065 items, 5,000 test queries):
 
 ||Retriever||Device||Recall@10 vs exact||QPS (max c)||$/1M||
-|*FAISS-CPU HNSW*|CPU|1.0000|*189,739*|*$0.0021*|
+|*FAISS-CPU HNSW* (128-thread)|CPU|1.0000|*183,096*|*$0.0022*|
 |FAISS-GPU IVF-PQ|GPU (H100)|0.4181|*356,097*|$0.0027|
+|ScaNN (128-thread)|CPU|1.0000|10,852|$0.0363|
 |*cuVS CAGRA*|GPU (H100)|1.0000|4,469|$0.3046|
 |cuVS IVF-PQ|GPU (H100)|0.4649|1,055|$0.9695|
 |Qdrant server (gRPC)|CPU|1.0000|743|$0.5306|
@@ -41,10 +42,10 @@ h2. 2. 실측 결과 표 (자동 생성)
 
 ||Retriever||Device||Recall@10 vs exact||QPS (max c)||$/1M||
 |FAISS-GPU IVF-PQ|GPU (H100)|0.5102|*56,810*|*$0.0028*|
-|*FAISS-CPU HNSW*|CPU|0.9973|38,711|$0.0102|
+|*FAISS-CPU HNSW*|CPU|0.9973|32,745|$0.0120|
 |*cuVS CAGRA*|GPU (H100)|0.9993|13,839|$0.0984|
 |cuVS IVF-PQ|GPU (H100)|0.5477|11,599|$0.1173|
-|ScaNN CPU|CPU (AVX2)|0.9874|5,196|$0.0759|
+|ScaNN CPU|CPU (AVX2)|0.9874|4,464|$0.0884|
 |Qdrant server (gRPC)|CPU|1.0000|550|$0.7177|
 
 {quote}
@@ -65,14 +66,17 @@ h2. 3. Iso-recall speedup ratio (사용자 요구사항: 속도 비교)
 다른 retriever 의 QPS 배수:
 
 {code}
-ML-25M (24k items, sanity):
-  cuvs_cagra (GPU H100)     4,469 QPS    × 1.00  ← baseline (가장 느린)
-  faiss_hnsw_cpu (CPU)    332,176 QPS    × 74.33
+ML-25M (24k items, sanity) — CPU 128-thread 고정:
+  qdrant_server (CPU)         743 QPS    × 1.00   ← baseline (가장 느린)
+  cuvs_cagra (GPU H100)     4,469 QPS    × 6.01
+  scann_cpu (CPU)          28,959 QPS    × 38.95
+  faiss_hnsw_cpu (CPU)    300,707 QPS    × 404.48
 
 Amazon Reviews 2023 Beauty (162k items):
-  scann_cpu (CPU)           5,196 QPS    × 1.00  ← baseline
-  cuvs_cagra (GPU H100)    14,909 QPS    × 2.87
-  faiss_hnsw_cpu (CPU)    102,126 QPS    × 19.65
+  qdrant_server (CPU)         550 QPS    × 1.00   ← baseline
+  scann_cpu (CPU)           4,464 QPS    × 8.12
+  cuvs_cagra (GPU H100)    14,909 QPS    × 27.13
+  faiss_hnsw_cpu (CPU)     95,151 QPS    × 173.12
 {code}
 
 이 표는 사용자 요구사항인 *"vector DB 별 retrieval 속도 향상 비교"*
@@ -80,7 +84,7 @@ Amazon Reviews 2023 Beauty (162k items):
 
 *핵심 관찰*: 두 dataset 모두에서 **FAISS-CPU HNSW 가 가장 빠르고
 가장 저렴함**. corpus 크기가 24k → 162k 로 7배 늘면서 GPU (cuVS CAGRA)
-와의 격차가 74× → 7× 로 좁혀졌으며, **수백만 ~ 1억 items 의 산업급
+와의 격차가 약 67× (ML-25M) → 약 6.4× (Amazon, cuVS 14,909 vs faiss 95,151 기준) 로 좁혀졌으며, **수백만 ~ 1억 items 의 산업급
 corpus 에서는 GPU 가속이 이길 것** 으로 예측 (Phase 2 stretch 에서 측정
 예정). 이는 VDPU 의 영업 narrative 의 핵심 전제 — 더 큰 corpus 일수록
 가속기의 가치 증가.
@@ -91,7 +95,7 @@ h3. 4.1 ML-25M 의 corpus 규모 한계
 
 * ML-25M 은 사용자 162k × 아이템 24k 의 작은 corpus.
 * 이 규모에서는 **CPU 의 FAISS-CPU HNSW 가 GPU baseline (cuVS) 보다
-  74× 빠르다**. Recall@10 vs exact 가 동일하게 1.0 에 도달함에도.
+  약 67× 빠르다**. Recall@10 vs exact 가 동일하게 1.0 에 도달함에도.
 * 원인: 작은 batch 의 query 처리에 GPU 의 batched dispatch + CPU-GPU
   PCIe 전송 + CUDA sync overhead 가 CPU 의 더 빠른 single-stream
   latency 를 압도.
@@ -126,8 +130,8 @@ h3. 4.3 Vector DB 의 위치 — in-process vs server mode
 * recall@10 vs exact *1.0000* (정확도 정상), QPS **743 (ML-25M) /
   550 (Amazon Beauty)**.
 * in-process ANN 라이브러리 대비 매우 낮은 throughput:
-** ML-25M: FAISS-CPU HNSW 332k QPS → Qdrant server 743 QPS (*약 447×* 차이)
-** Amazon Beauty: FAISS-CPU HNSW 102k → Qdrant 550 (*약 186×*)
+** ML-25M: FAISS-CPU HNSW 301k QPS → Qdrant server 743 QPS (*약 405×* 차이)
+** Amazon Beauty: FAISS-CPU HNSW 95k → Qdrant 550 (*약 173×*)
 * 원인: *per-query gRPC round-trip* (client→server 직렬화 + 네트워크
   + 역직렬화). 추천 retrieval 의 실제 production 도 vector DB 를 RPC 로
   호출하면 이 비용을 치른다.
@@ -147,11 +151,15 @@ h3. 4.3 Vector DB 의 위치 — in-process vs server mode
 *같은 배포 형태끼리* 비교해야 공정하다 (예: VDPU-가속 vector DB
 vs GPU-가속 vector DB, 또는 VDPU in-process vs GPU in-process).
 
-h3. 4.4 ScaNN 의 CPU 강자 입지 (미완 측정)
+h3. 4.4 ScaNN 의 CPU 입지 (측정 완료, 128-thread)
 
-* Phase 1 의 첫 평가 cycle 에서는 milvus_lite 의 느린 측정으로 인해
-  ScaNN 평가가 미완. retriever 구현은 작동 (sanity check 통과) 검증
-  됨. 다음 cycle 에서 측정 예정.
+* 측정 완료: ML-25M recall 1.0 에서 10,852 QPS, Amazon Beauty recall
+  0.987 에서 4,464 QPS (둘 다 128-thread 고정).
+* 같은 CPU 의 FAISS-CPU HNSW 보다 느림 (ML-25M 183k, Amazon 95k vs
+  ScaNN 10.9k/4.5k). ScaNN 은 leaves_to_search 를 키울수록 recall↑·
+  QPS↓ 의 전형적 trade-off 를 보이며, 본 corpus 규모에서는 HNSW 가
+  Pareto-우위.
+* CPU 진영 비교 레퍼런스로서 가치 (FAISS HNSW 의 우위를 교차 검증).
 
 h3. 4.5 모델 quality 의 한계와 ANN 비교의 frame
 

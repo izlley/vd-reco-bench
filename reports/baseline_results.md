@@ -13,13 +13,16 @@
 |---|---|---|---|---|---|---|---|---|---|
 | amazon_beauty | cuvs_cagra | cuda | 0.9993 | 0.0077 | 0.0048 | 13,839 | 12.38 | $0.0984 | 0.00 |
 | amazon_beauty | cuvs_ivfpq | cuda | 0.5477 | 0.0076 | 0.0050 | 11,599 | 6.97 | $0.1173 | 0.00 |
-| amazon_beauty | faiss_hnsw_cpu | cpu | 0.9973 | 0.0077 | 0.0048 | 38,711 | 1.15 | $0.0102 | 0.00 |
+| amazon_beauty | faiss_hnsw_cpu | cpu | 0.9973 | 0.0077 | 0.0048 | 32,745 | 1.25 | $0.0120 | 0.00 |
+| amazon_beauty | faiss_ivfpq_gpu | cuda | 0.5102 | 0.0075 | 0.0047 | 56,810 | 0.23 | $0.0240 | 0.00 |
 | amazon_beauty | qdrant_server | cpu | 1.0000 | 0.0077 | 0.0048 | 550 | 2.41 | $0.7177 | 0.22 |
-| amazon_beauty | scann_cpu | cpu | 0.9874 | 0.0077 | 0.0048 | 5,196 | 0.51 | $0.0759 | 0.02 |
+| amazon_beauty | scann_cpu | cpu | 0.9874 | 0.0077 | 0.0048 | 4,464 | 0.58 | $0.0884 | 0.03 |
 | ml25m | cuvs_cagra | cuda | 1.0000 | 0.0195 | 0.1161 | 4,469 | 77.15 | $0.3046 | 0.02 |
 | ml25m | cuvs_ivfpq | cuda | 0.4649 | 0.0231 | 0.1304 | 1,055 | 61.03 | $0.9695 | 0.05 |
-| ml25m | faiss_hnsw_cpu | cpu | 1.0000 | 0.0195 | 0.1161 | 189,739 | 0.18 | $0.0021 | 0.00 |
+| ml25m | faiss_hnsw_cpu | cpu | 1.0000 | 0.0195 | 0.1161 | 183,096 | 0.19 | $0.0022 | 0.00 |
+| ml25m | faiss_ivfpq_gpu | cuda | 0.4181 | 0.0150 | 0.0848 | 356,097 | 0.11 | $0.0038 | 0.00 |
 | ml25m | qdrant_server | cpu | 1.0000 | 0.0195 | 0.1161 | 743 | 1.79 | $0.5306 | 0.16 |
+| ml25m | scann_cpu | cpu | 1.0000 | 0.0195 | 0.1161 | 10,852 | 0.33 | $0.0363 | 0.01 |
 
 ## Iso-recall speedup (Recall@10 vs exact ≥ 0.95)
 
@@ -28,12 +31,13 @@
 | Dataset | Retriever | Device | QPS | Speedup vs slowest |
 |---|---|---|---|---|
 | amazon_beauty | qdrant_server | cpu | 550 | 1.00× |
-| amazon_beauty | scann_cpu | cpu | 5,196 | 9.45× |
+| amazon_beauty | scann_cpu | cpu | 4,464 | 8.12× |
 | amazon_beauty | cuvs_cagra | cuda | 14,909 | 27.13× |
-| amazon_beauty | faiss_hnsw_cpu | cpu | 102,126 | 185.81× |
+| amazon_beauty | faiss_hnsw_cpu | cpu | 95,151 | 173.12× |
 | ml25m | qdrant_server | cpu | 743 | 1.00× |
 | ml25m | cuvs_cagra | cuda | 4,469 | 6.01× |
-| ml25m | faiss_hnsw_cpu | cpu | 332,176 | 446.81× |
+| ml25m | scann_cpu | cpu | 28,959 | 38.95× |
+| ml25m | faiss_hnsw_cpu | cpu | 300,707 | 404.48× |
 
 ## 시각화
 

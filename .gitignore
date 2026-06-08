@@ -8,9 +8,9 @@ indexes/
 results/
 logs/*.log
 
-# Auto-generated figures live in reports/figures/ but the bitmap binaries are not commit-friendly.
-# Keep the directory but ignore the bitmaps; regenerate with `scripts/99_make_report.sh`.
-reports/figures/*.png
+# reports/figures/ 의 결과 그래프는 발표/공개 자료(PRESENTATION.md, baseline_results.md,
+# 07_scaling.md)에 임베드되므로 git 에 포함한다. (재생성: scripts/99_make_report.sh,
+# reco_bench/pipelines/scaling_report.py). PDF 는 제외.
 reports/figures/*.pdf
 
 # Auto-generated aggregate report

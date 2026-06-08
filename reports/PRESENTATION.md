@@ -186,10 +186,10 @@ class Retriever:
 
 | 검색기 | 종류 | 장치 | 속도(QPS) | 비용($/100만) |
 |---|---|---|---|---|
-| FAISS-CPU HNSW | 라이브러리 | CPU | 38,711 | $0.010 |
+| FAISS-CPU HNSW | 라이브러리 | CPU | 32,745 | $0.012 |
 | FAISS-GPU IVF-PQ | 라이브러리 | GPU | **56,810** | $0.003 |
 | cuVS CAGRA | 라이브러리 | GPU | 13,839 | $0.098 |
-| ScaNN | 라이브러리 | CPU | 5,196 | $0.076 |
+| ScaNN | 라이브러리 | CPU | 4,464 | $0.088 |
 | **Qdrant (벡터 DB 서버)** | DB | CPU | 550 | $0.718 |
 
 *(Amazon Beauty, 16만 상품 기준. 전체 표는 [`baseline_results.md`](baseline_results.md).)*

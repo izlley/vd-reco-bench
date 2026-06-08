@@ -39,9 +39,12 @@
 </ul>
 <h2>Open questions / next</h2>
 <ul>
-<li><strong>기존 결과 재측정</strong>: 128-thread 고정으로 Phase 1 baseline (ML-25M,
-  Amazon) 의 CPU retriever(FAISS-CPU HNSW, ScaNN) QPS·$/QPS 를 재측정해
-  baseline_results.md 를 갱신하면 cost 비교가 엄밀해진다 (향후).</li>
+<li><strong>기존 결과 재측정 ✅ 완료</strong>: 128-thread 고정으로 Phase 1 의 CPU
+  retriever(FAISS-CPU HNSW, ScaNN) 를 ML-25M·Amazon 에서 재측정 완료
+  (<code>results/phase1_cpu_rethread/</code>). baseline_results.md 통합 (62 rows).
+  <strong>결과 거의 동일</strong> — batch≤64 라 thread 무제한이어도 ~64 thread 만
+  활용됐던 것이라, 128 고정과 throughput 차이 작음 → 기존 비교의
+  공정성도 사후 확인됨.</li>
 <li><strong>cost SKU 선택</strong>: 측정 머신과 가까운 SKU(예: 224-core 급)로 cost
   model 을 바꾸고 thread 도 그에 맞추는 대안도 가능. 현재는 128-core
   EPYC 로 고정.</li>
