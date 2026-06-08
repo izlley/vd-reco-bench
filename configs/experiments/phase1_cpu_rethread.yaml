@@ -1,0 +1,23 @@
+experiment_id: phase1_full
+description: CPU retriever 재측정 (128-thread 고정, cost SKU 정합) — FAISS-CPU HNSW + ScaNN
+datasets:
+  - configs/datasets/ml25m.yaml
+  - configs/datasets/amazon_beauty.yaml
+model: configs/models/two_tower_base.yaml
+retrievers:
+  - configs/retrievers/faiss_hnsw_cpu.yaml
+  - configs/retrievers/scann_cpu.yaml
+evaluation:
+  ks: [10, 100]
+  latency:
+    mode: both
+    concurrencies: [1, 4, 16, 64]
+    warmup_queries: 200
+    min_measured_queries: 1000
+    min_measured_seconds: 2
+  power:
+    sample_interval_ms: 100
+    baseline_idle_seconds: 1
+cost_model: configs/cost_model.yaml
+reporting:
+  output_dir: results/phase1_cpu_rethread
