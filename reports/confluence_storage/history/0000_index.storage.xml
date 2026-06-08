@@ -136,10 +136,10 @@
 </tr>
 <tr>
 <td>2026-06-04</td>
-<td>1</td>
-<td><a href="2026-06-04_vectordb-server-eval.html">vectordb-server-eval</a></td>
+<td>2</td>
+<td><a href="2026-06-04_phase2-scaling.html">phase2-scaling</a></td>
 <td>completed</td>
-<td>Vector DB <strong>server-mode</strong> 평가. Docker 불가 → Qdrant standalone 바이너리 gRPC 서버로 측정 (ML-25M 743 QPS / Amazon 550, recall 1.0). Milvus 는 minio 의존으로 생략. keepalive 의 CPU-eval 오인 버그 수정. 5 retriever × 2 dataset 통합.</td>
+<td>Phase 2 (VDPU-비의존): corpus {100k/1M/10M} + dim {64~512} scaling. GPU 는 corpus 에 robust(격차 4→5.5×), 고차원일수록 CPU 불리. synthetic, 07_scaling.md.</td>
 </tr>
 </tbody>
 </table>

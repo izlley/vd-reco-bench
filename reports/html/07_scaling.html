@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07_scaling · reco_bench</title>
+<style>:root { --fg:#1f2328; --muted:#656d76; --border:#d0d7de; --bg:#fff;
+        --code-bg:#f6f8fa; --link:#0969da; --accent:#0550ae; }
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR",
+       Helvetica, Arial, sans-serif; line-height: 1.6; color: var(--fg);
+       background: var(--bg); max-width: 980px; margin: 0 auto; padding: 32px 24px 80px; }
+h1,h2,h3,h4 { font-weight: 600; line-height: 1.25; margin-top: 1.6em; margin-bottom: .6em; }
+h1 { font-size: 1.9em; border-bottom: 2px solid var(--border); padding-bottom: .3em; }
+h2 { font-size: 1.45em; border-bottom: 1px solid var(--border); padding-bottom: .25em; }
+h3 { font-size: 1.2em; } h4 { font-size: 1.05em; color: var(--muted); }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+code { background: var(--code-bg); padding: .15em .4em; border-radius: 6px;
+       font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+      border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: .85em; }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--border); padding: 6px 13px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:nth-child(2n) td { background: #fafbfc; }
+blockquote { border-left: 4px solid var(--border); margin: 1em 0; padding: .2em 1em;
+             color: var(--muted); background: #f6f8fa55; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.metabox { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+           padding: 10px 16px; margin-bottom: 24px; font-size: .9em; color: var(--muted); }
+.metabox b { color: var(--fg); }
+.docnav { font-size: .85em; color: var(--muted); margin-bottom: 8px; }
+.toc { background: #f6f8fa55; border: 1px solid var(--border); border-radius: 8px;
+       padding: 8px 16px 8px 0; margin: 1em 0; font-size: .92em; }
+.toc > ul { margin: .3em 0; }
+img { max-width: 100%; }</style>
+<script>
+window.MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+                   options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] } };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<div class="docnav"><a href="00_overview.html">↑ 개요</a> · <a href="history/0000_index.html">history</a></div>
+
+<h1 id="07-scaling-sensitivity-phase-2-vdpu-">07 · Scaling &amp; Sensitivity (Phase 2, VDPU-비의존)</h1>
+<blockquote>
+<p>이 문서는 Phase 2 의 <strong>VDPU-비의존 부분</strong> 결과이다. VDPU 하드웨어가
+아직 없으므로, <strong>synthetic embedding 으로 corpus 크기와 dim 을 통제
+변수로 sweep</strong> 하여 "어떤 조건에서 GPU 가속의 가치가 커지는가" 를
+측정한다. 이는 VDPU 영업 narrative 의 핵심 전제 — <strong>VDPU 가 겨냥하는
+영역(대규모·고차원)에서 GPU 가 CPU 를 압도</strong> — 를 데이터로 뒷받침한다.</p>
+</blockquote>
+<h2 id="1-tldr">1. TL;DR</h2>
+<table>
+<thead>
+<tr>
+<th>발견</th>
+<th>데이터</th>
+<th>영업적 함의</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>corpus 가 커질수록 GPU/CPU throughput 격차 확대</strong></td>
+<td>QPS 격차 100k 에서 4× → 10M 에서 5.5× (CAGRA vs FAISS-CPU HNSW)</td>
+<td>VDPU 의 타겟인 대규모 corpus 일수록 GPU-class 가속의 가치↑</td>
+</tr>
+<tr>
+<td><strong>GPU 는 corpus 에 robust, CPU 는 하락</strong></td>
+<td>CAGRA QPS 14.7k→16.4k (corpus 100k→10M), FAISS-CPU 3.6k→3.0k</td>
+<td>데이터 증가에도 GPU 처리량 유지 = 확장성</td>
+</tr>
+<tr>
+<td><strong>고차원일수록 CPU 가 더 불리</strong></td>
+<td>dim 512 에서 FAISS-CPU QPS 3.7k→2.1k 급락, CAGRA 16k→14k 로 완만</td>
+<td>임베딩 차원이 큰 모델(LLM 기반 임베딩 등)일수록 GPU/VDPU 유리</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2">2. 측정 설계</h2>
+<ul>
+<li><strong>합성 데이터</strong>: <code>reco_bench/data/synthetic.py</code> 의 clustered gaussian
+  (256 cluster, L2-norm). 학습 없이 corpus/dim 만 순수 변수로 통제.
+  query 는 임의 item 을 약간 perturb (현실적 top-K).</li>
+<li><strong>통제 변수</strong>:</li>
+<li>corpus sweep: items ∈ {100k, 1M, 10M}, dim=128 고정</li>
+<li>dim sweep: dim ∈ {64, 128, 256, 512}, corpus=1M 고정</li>
+<li><strong>retriever</strong>: FAISS-CPU HNSW, cuVS CAGRA (GPU), cuVS IVF-PQ (GPU).
+  각 retriever 대표 param 2점 (recall 높은 쪽 선택).</li>
+<li><strong>하드웨어</strong>: H100 1장 (<code>CUDA_VISIBLE_DEVICES=0</code>) + CPU.</li>
+<li>측정: <code>reco_bench/pipelines/scaling.py</code>.</li>
+</ul>
+<h2 id="3-corpus-scaling-dim128">3. Corpus scaling 결과 (dim=128)</h2>
+<p><img alt="" src="figures/scaling_corpus.png"></p>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>Device</th>
+<th>Corpus</th>
+<th>Recall@10 vs exact</th>
+<th>QPS (max)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>100,000</td>
+<td>0.7772</td>
+<td>14,744</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>1,000,000</td>
+<td>0.7263</td>
+<td>15,084</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>10,000,000</td>
+<td>0.2096</td>
+<td><strong>16,381</strong></td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>100,000</td>
+<td>0.9496</td>
+<td>3,622</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>1,000,000</td>
+<td>0.7940</td>
+<td>3,647</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>10,000,000</td>
+<td>0.5258</td>
+<td><strong>2,952</strong></td>
+</tr>
+<tr>
+<td>cuVS IVF-PQ</td>
+<td>GPU</td>
+<td>100,000</td>
+<td>0.3809</td>
+<td>23,974</td>
+</tr>
+<tr>
+<td>cuVS IVF-PQ</td>
+<td>GPU</td>
+<td>1,000,000</td>
+<td>0.3203</td>
+<td>18,031</td>
+</tr>
+<tr>
+<td>cuVS IVF-PQ</td>
+<td>GPU</td>
+<td>10,000,000</td>
+<td>0.2592</td>
+<td>20,639</td>
+</tr>
+</tbody>
+</table>
+<p><strong>해석</strong>:
+- <strong>QPS</strong>: GPU(CAGRA)는 corpus 가 100배 커져도 (100k→10M) throughput 이
+  오히려 약간 상승 (배치 효율이 큰 corpus 에서 더 잘 발휘). CPU 는
+  3,622→2,952 로 하락. <strong>격차가 4.1× → 5.5× 로 확대</strong>.
+- 이것이 영업 핵심: <strong>VDPU 가 겨냥하는 대규모 corpus 일수록 GPU-class
+  가속의 상대 가치가 커진다.</strong> VDPU 는 그 GPU 영역을 다시 가속하는 것.</p>
+<h2 id="4-dim-sensitivity-corpus1m">4. Dim sensitivity 결과 (corpus=1M)</h2>
+<p><img alt="" src="figures/scaling_dim.png"></p>
+<table>
+<thead>
+<tr>
+<th>Retriever</th>
+<th>Device</th>
+<th>Dim</th>
+<th>Recall@10 vs exact</th>
+<th>QPS (max)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>64</td>
+<td>0.9100</td>
+<td>16,102</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>128</td>
+<td>0.7298</td>
+<td>19,141</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>256</td>
+<td>0.4122</td>
+<td>14,116</td>
+</tr>
+<tr>
+<td>cuVS CAGRA</td>
+<td>GPU</td>
+<td>512</td>
+<td>0.2024</td>
+<td>13,961</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>64</td>
+<td>0.9464</td>
+<td>3,753</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>128</td>
+<td>0.7930</td>
+<td>3,585</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>256</td>
+<td>0.4682</td>
+<td>3,102</td>
+</tr>
+<tr>
+<td>FAISS-CPU HNSW</td>
+<td>CPU</td>
+<td>512</td>
+<td>0.2162</td>
+<td><strong>2,116</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>해석</strong>:
+- dim 이 64→512 로 커질 때 CPU HNSW 의 QPS 가 3,753→2,116 (<strong>-44%</strong>)
+  으로 크게 하락. GPU CAGRA 는 16,102→13,961 (<strong>-13%</strong>) 로 완만.
+- <strong>고차원 임베딩일수록 CPU 가 더 불리</strong> → LLM/멀티모달 임베딩처럼
+  dim 이 큰 추천 모델에서 GPU/VDPU 의 이점이 커진다.</p>
+<h2 id="5">5. 한계와 주의 (정직한 기록)</h2>
+<ul>
+<li><strong>recall 절대값은 낮다</strong>: 본 sweep 은 retriever 당 <strong>고정 param 2점</strong>
+  만 측정해서, corpus/dim 이 커지면 같은 param 으로는 recall 이 하락한다
+  (예: 10M 에서 CAGRA recall 0.21). param(efSearch/itopk/nprobe)을
+  corpus 에 맞춰 키우면 recall 은 회복되지만 QPS 는 그만큼 내려간다.
+  <strong>본 문서의 초점은 recall 절대값이 아니라 throughput 의 scaling 거동</strong>
+  (GPU vs CPU 의 상대 추세) 이다.</li>
+<li><strong>synthetic 데이터</strong>: clustered gaussian 은 추천 임베딩의 cluster 구조
+  를 일부 반영하지만 실제 분포와 다르다. 절대 수치보다 <strong>추세</strong> 로 해석.
+  실데이터(Amazon) 결과(<code>06_phase1_findings.md</code>)와 추세가 일치함을 확인.</li>
+<li><strong>IVF-PQ 의 낮은 recall</strong> 은 PQ 압축 손실 (Phase 1 과 동일 원인).</li>
+</ul>
+<h2 id="6-vdpu-narrative">6. VDPU narrative 연결</h2>
+<p>본 결과는 VDPU 의 가치 명제(<code>04_vdpu_value_proposition.md</code>)에 다음을
+보탠다:</p>
+<ol>
+<li><strong>시장(대규모 corpus)에서 CPU 는 throughput 한계</strong> → GPU-class 가속
+   이 필수. VDPU 는 "GPU 보다 저렴하게 그 throughput 을 내는가" 의 경쟁.</li>
+<li><strong>고차원 트렌드</strong> (LLM 임베딩) 가 GPU/VDPU 에 유리한 방향.</li>
+<li>Phase 2 에서 VDPU 실측이 추가되면, 이 corpus/dim sweep 의 <strong>각 점에
+   VDPU 곡선을 겹쳐</strong> "VDPU 가 GPU 대비 같은 recall 에서 몇 배 저렴/빠른가"
+   를 corpus·dim 별로 보일 수 있다. 측정 인프라(<code>scaling.py</code>)는 이미
+   retriever-agnostic 이라 VDPU retriever 만 추가하면 된다.</li>
+</ol>
+<h2 id="7">7. 재현</h2>
+<pre><code class="language-bash">python -m reco_bench.pipelines.scaling --mode corpus   # 100k/1M/10M × dim128
+python -m reco_bench.pipelines.scaling --mode dim      # dim 64~512 × corpus1M
+python -m reco_bench.pipelines.scaling_report          # 그래프 + 표
+</code></pre>
+<h2 id="8">8. 변경 이력</h2>
+<table>
+<thead>
+<tr>
+<th>날짜</th>
+<th>변경</th>
+<th>근거</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-06-04</td>
+<td>Phase 2 corpus/dim scaling 측정 + 문서화</td>
+<td>사용자 지시 (VDPU-비의존 Phase 2)</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

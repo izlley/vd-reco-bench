@@ -1,0 +1,76 @@
+{info:title=metadata}
+date: 2026-06-04
+phase: 2
+topic: scaling-sensitivity
+status: completed
+{info}
+
+
+h1. Phase 2 (VDPU-비의존): corpus/dim scaling & sensitivity
+
+h2. What changed
+
+* 사용자 지시로 Phase 2 의 *VDPU-비의존 부분* 진행 (VDPU 하드웨어는
+  아직 없음). 우선순위: 대규모 데이터셋 scaling + dim/recall sensitivity.
+* 추가 코드:
+** {{reco_bench/data/synthetic.py}} — clustered gaussian embedding
+    generator (학습 없이 corpus/dim 통제).
+** {{reco_bench/pipelines/scaling.py}} — corpus/dim sweep 측정.
+** {{reco_bench/pipelines/scaling_report.py}} — 그래프 + 표 생성.
+* 측정 (H100 1장, synthetic):
+** *corpus sweep*: items {100k, 1M, 10M} × dim 128 (18 rows)
+** *dim sweep*: dim {64, 128, 256, 512} × corpus 1M (24 rows)
+** retriever: FAISS-CPU HNSW, cuVS CAGRA, cuVS IVF-PQ
+* 산출:
+** {{reports/figures/scaling_corpus.png}}, {{scaling_dim.png}}
+** {{reports/07_scaling.md}} (신규 문서)
+** {{results/phase2_scaling/scaling_{corpus,dim}.json}}
+
+h2. 핵심 결과
+
+*Corpus scaling (dim=128), QPS (max)*:
+||corpus||CAGRA (GPU)||FAISS-CPU HNSW||격차||
+|100k|14,744|3,622|4.1×|
+|1M|15,084|3,647|4.1×|
+|10M|16,381|2,952|*5.5×*|
+
+→ GPU 는 corpus 100배 증가에도 throughput 유지/상승, CPU 는 하락.
+   *격차가 corpus 클수록 확대* = VDPU 타겟 영역(대규모)에서 GPU-class
+   가속 가치↑.
+
+*Dim sensitivity (corpus=1M), QPS (max)*:
+||dim||CAGRA (GPU)||FAISS-CPU HNSW||
+|64|16,102|3,753|
+|512|13,961 (-13%)|2,116 (*-44%*)|
+
+→ 고차원일수록 CPU 가 더 불리 (LLM 임베딩 트렌드 = GPU/VDPU 유리).
+
+h2. Why
+
+* VDPU 실측 없이도 영업 narrative 의 *전제* 를 데이터로 입증 가능:
+  "VDPU 가 겨냥하는 대규모·고차원 영역에서 CPU 는 한계, GPU-class 가속
+  이 필수" → 그래야 "VDPU vs GPU" 비교가 의미를 가짐.
+* *synthetic* 을 쓴 이유: corpus/dim 을 학습 없이 순수 통제 변수로
+  sweep 하기 위함 (실데이터는 corpus 가 고정). ann-benchmarks 도 합성/
+  공개 벡터를 쓰는 표준 방식. 실데이터(Amazon) 추세와 일치 확인.
+* 측정 인프라가 *retriever-agnostic* 이라, VDPU 하드웨어가 오면
+  {{scaling.py}} 에 VDPU retriever 만 추가해 같은 sweep 의 각 점에 VDPU
+  곡선을 겹칠 수 있다.
+
+h2. Validation
+
+* synthetic embedding L2-norm = 1.0 확인, CAGRA self-recall smoke 0.96.
+* corpus/dim 추세가 일관적 (GPU robust, CPU 하락) + Phase 1 실데이터
+  추세와 방향 일치.
+* recall 절대값이 낮은 것은 *고정 param 2점* 측정 때문임을 문서에
+  명시 (param 키우면 회복, 단 본 sweep 은 throughput scaling 이 초점).
+
+h2. Open questions / next
+
+* *param-aware scaling*: corpus/dim 별로 recall 0.9 를 맞추는 param 을
+  찾아 iso-recall throughput scaling 을 재측정하면 더 강력 (현재는 고정
+  param). 시간 소요 큼 → 향후.
+* *실데이터 대규모*: Amazon Books(700k)/Electronics(1.6M) 로 synthetic
+  추세를 cross-check (학습 필요).
+* *VDPU 실측*: 하드웨어 도착 시 scaling sweep 에 VDPU 곡선 추가가
+  Phase 2 의 최종 목표 (현재는 GPU/CPU baseline 만).

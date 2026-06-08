@@ -84,27 +84,89 @@ reco_bench/
 └── papers/         # 참고 논문
 ```
 
-## 빠른 시작
+## 빠른 시작 (Quick Start)
 
-> 가장 빠른 첫 결과는 [`QUICKSTART.md`](QUICKSTART.md) 참조. 한 페이지로
-> 환경 설치 → 5가지 retriever 비교 결과까지 도달.
+처음 접하는 사람이 **단일 흐름으로 첫 결과**까지 도달하도록 정리했다.
+자세한 설계는 [reports/](reports/) 참조.
+
+### 0. 사전 요구
+
+| 항목 | 권장 |
+|---|---|
+| OS | Linux (Ubuntu 22.04+ 권장) |
+| GPU | NVIDIA H100 / A100 / H200 (CUDA 12.x), 1대 이상 |
+| Python | 3.10 ~ 3.12 |
+| 디스크 | 30 GB+ 여유 (ML-25M ~2 GB, Amazon Beauty ~15 GB) |
+| 메모리 | 64 GB+ 권장 |
+
+GPU 없이도 CPU baseline (FAISS-CPU HNSW, ScaNN, Qdrant) 만 측정 가능.
+
+### 1. 설치 (1분)
 
 ```bash
-# 단일 흐름 (5~30분, 데이터셋 크기에 따라)
-pip install -e . && pip install -r requirements.txt
-pip install "pymilvus[milvus_lite]" qdrant-client scann
+git clone <repo-url> reco_bench && cd reco_bench
+
+# Python 환경 (PyTorch + CUDA 12.x 가 깔린 환경 가정)
+pip install -e .
+pip install -r requirements.txt
+
+# Vector DB / ANN 라이브러리
+pip install faiss-cpu sentence-transformers scikit-learn nvidia-ml-py \
+            "pymilvus[milvus_lite]" qdrant-client scann
+
+# GPU 가속 (cuVS) — NVIDIA pip 채널
 pip install --extra-index-url https://pypi.nvidia.com \
     cuvs-cu12 pylibraft-cu12 cupy-cuda12x
+```
 
+설치 검증:
+```bash
+python -c "import torch, faiss, cuvs; \
+print('torch', torch.__version__, '|', torch.cuda.device_count(), 'GPUs')"
+```
+
+> **FAISS-GPU (선택)**: H100(sm_90) 은 PyPI wheel 미지원 + PyTorch cublas
+> ABI 충돌이라, 필요 시 conda-forge `faiss-gpu` 를 격리 env 에 설치해
+> worker 로 측정한다 (`reports/05_reproducibility.md §2`).
+
+### 2. 한 번에 끝까지 (5 ~ 30분, 데이터셋 크기에 따라)
+
+```bash
+# 데이터 → 학습 → 인덱스 → 평가 → 리포트 까지 단일 흐름
 bash scripts/00_download_data.sh ml25m
 bash scripts/10_train_two_tower.sh configs/experiments/phase1_full.yaml
 bash scripts/20_build_index.sh    configs/experiments/phase1_full.yaml
 bash scripts/30_run_benchmark.sh  configs/experiments/phase1_full.yaml
 bash scripts/99_make_report.sh    configs/experiments/phase1_full.yaml
-# → reports/baseline_results.md + reports/figures/*.png
 ```
 
-비교 대상 (Phase 1 측정 완료, 한 명령 안에서 측정):
+산출물:
+- `reports/baseline_results.md` — 자동 생성된 main result
+- `reports/figures/*.png` — 5종 그래프 (Recall-QPS, latency CDF, cost
+  bar, throughput vs concurrency, throughput per Watt)
+- `results/phase1_full/{metrics.json, aggregate.csv}` — raw 측정값
+- `checkpoints/phase1_full/<dataset>/` — 학습된 모델 + item embedding
+- `indexes/<retriever>/<dataset>/` — retriever 별 ANN 인덱스
+
+### 3. 결과 보기
+
+```bash
+less reports/baseline_results.md          # Markdown 리포트 (GitHub 렌더링)
+open reports/figures/recall_vs_qps.png    # 시각화
+```
+
+`baseline_results.md` 메인 표 컬럼:
+
+| 컬럼 | 의미 |
+|---|---|
+| **Recall@10 (vs exact)** | ANN 알고리즘의 정확도 (모델과 독립). VDPU 비교의 핵심 지표 |
+| **Recall@10 (vs GT)** | 추천 품질 (model + ANN 합) |
+| **QPS (max c)** | 최대 concurrency 에서의 throughput |
+| **P99 ms** | single-stream P99 지연 |
+| **$/1M** | 1M query 처리 비용 (cloud SKU 기반) |
+| **W/QPS** | 전력 효율 |
+
+### 4. 비교 대상 (Phase 1 측정 완료, 한 명령 안에서 측정)
 
 | 카테고리 | Retriever | Device | 측정 환경 |
 |---|---|---|---|
@@ -118,8 +180,39 @@ bash scripts/99_make_report.sh    configs/experiments/phase1_full.yaml
 | 가속기 (Phase 2) | Dnotitia VDPU | — | 예정 |
 
 > GPU 측정은 모두 **H100 1장 (`CUDA_VISIBLE_DEVICES=0`)** 기준.
-> FAISS-GPU 는 H100(sm_90) + PyTorch cublas ABI 충돌 때문에 격리 conda
-> env 의 worker 로 측정 (`reports/05_reproducibility.md §2`).
+
+### 5. 다른 dataset 으로
+
+```bash
+bash scripts/00_download_data.sh amazon_beauty
+bash scripts/00_download_data.sh amazon_books        # 더 큼 (~30G raw)
+bash scripts/00_download_data.sh amazon_electronics  # 가장 큼
+# experiment YAML 의 datasets: 에 추가 후 동일 명령으로 재실행
+```
+
+### 6. 새 retriever 추가하기 (5분)
+
+`reco_bench` 의 핵심 설계 원칙은 **모든 retriever 가 한 추상 클래스
+뒤에 숨는다** 는 것. Vector DB 든 ANN 라이브러리든 추가 절차는 동일:
+
+1. `reco_bench/retrievers/<name>.py` — `Retriever` 상속,
+   `build / search / save / load / device_info` 5개 메서드만 구현
+2. `configs/retrievers/<name>.yaml` 작성 (기존 yaml 참고)
+3. experiment yaml 의 `retrievers:` 리스트에 추가
+
+`reco_bench/retrievers/base.py` 의 docstring 이 contract 의 상세.
+**VDPU 통합도 동일** — 새 retriever 1개 + YAML 1개 + cost_model 1행.
+
+### 7. 자주 묻는 문제
+
+- **`milvus-lite is required`** → `pip install "pymilvus[milvus_lite]"`
+- **`faiss-gpu` cublas symbol error** → main env 엔 faiss-gpu 설치 금지
+  (PyTorch cublas 충돌). GPU 는 cuVS 사용, FAISS-GPU 는 격리 conda env.
+- **MovieLens sha256 mismatch** → GroupLens mirror 재패키징 탓. 경고만
+  출력하고 진행 (raw csv row count 동일하면 OK).
+- **Recall@10 (vs GT) 가 매우 낮음** → ML-25M ID-only Two-tower 의 known
+  한계 (~0.02). ANN 비교는 **Recall@10 vs exact** 로 볼 것 (모델 품질과
+  독립). 근거: `reports/01_metric_design.md §2.4`.
 
 ## 이 벤치마크가 필요한 이유
 
